@@ -123,4 +123,19 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | First-run installer
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, visiting the app with no platform superadmin redirects to
+    | /install so production can create the first admin account in the browser.
+    | PHPUnit disables this unless installer_enabled_in_tests is true.
+    |
+    */
+
+    'installer_enabled' => filter_var(env('APP_INSTALLER', true), FILTER_VALIDATE_BOOL),
+
+    'installer_enabled_in_tests' => filter_var(env('APP_INSTALLER_IN_TESTS', false), FILTER_VALIDATE_BOOL),
+
 ];

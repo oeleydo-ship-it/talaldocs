@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RedirectIfNeedsInstall;
 use App\Http\Middleware\RedirectIfOnboarded;
 use App\Http\Middleware\ResolvePublicHost;
 use App\Http\Middleware\SetCurrentWorkspace;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            RedirectIfNeedsInstall::class,
             HandleAppearance::class,
             SetCurrentWorkspace::class,
             HandleInertiaRequests::class,

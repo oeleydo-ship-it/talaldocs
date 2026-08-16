@@ -23,6 +23,7 @@ use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectSettingsController;
 use App\Http\Controllers\PublicDocsController;
+use App\Http\Controllers\InstallController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\WorkspaceController;
@@ -32,6 +33,11 @@ use App\Http\Middleware\RedirectIfOnboarded;
 use Illuminate\Support\Facades\Route;
 
 Route::post('stripe/webhook', StripeWebhookController::class)->name('stripe.webhook');
+
+Route::get('install', [InstallController::class, 'show'])->name('install.show');
+Route::post('install', [InstallController::class, 'store'])
+    ->middleware('throttle:install')
+    ->name('install.store');
 
 Route::get('/', [MarketingController::class, 'home'])->name('home');
 Route::get('features', [MarketingController::class, 'features'])->name('marketing.features');

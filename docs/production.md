@@ -1,13 +1,13 @@
 # Production deployment
 
-This guide covers deploying Anytdocs to a production environment with PostgreSQL, Redis, background workers, Stripe webhooks, and wildcard tenant subdomains.
+This guide covers deploying with **PostgreSQL or MySQL**, Redis, background workers, Stripe webhooks, and wildcard tenant subdomains.
 
 ## Stack overview
 
 | Component | Purpose |
 |-----------|---------|
 | PHP 8.3+ / Laravel 13 | Application server |
-| PostgreSQL | Primary database (FTS for public docs search) |
+| PostgreSQL **or** MySQL | Primary database (PostgreSQL recommended for FTS docs search) |
 | Redis | Cache, sessions, queues |
 | Node.js 20+ | Frontend asset build (`npm run build`) |
 | Queue worker | Custom domain verification, AI doc generation |
@@ -17,27 +17,47 @@ This guide covers deploying Anytdocs to a production environment with PostgreSQL
 | S3-compatible storage | Editor image uploads |
 | Cloudflare (recommended) | Wildcard DNS + SSL for SaaS / custom domains |
 
+## First visit (superadmin installer)
+
+After a successful deploy with a working database:
+
+1. Open the site URL in a browser.
+2. You are redirected to **`/install`** until a platform superadmin exists.
+3. Enter app name, superadmin name, email, and password.
+4. The installer runs pending migrations (if needed), seeds plans/languages, creates the superadmin, and sends you to `/platform`.
+
+Set `APP_INSTALLER=false` in `.env` only if you create the admin another way (e.g. seeder).
+
 ## Environment checklist
 
 Copy `.env.example` to `.env` and set:
 
 ```env
-APP_NAME=Anytdocs
+APP_NAME=Docs
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://app.anytdocs.com
-APP_DOMAIN=anytdocs.com
+APP_URL=https://app.example.com
+APP_DOMAIN=example.com
+APP_INSTALLER=true
 
 # Leave empty only for php artisan serve on localhost
-SESSION_DOMAIN=.anytdocs.com
-SANCTUM_STATEFUL_DOMAINS=app.anytdocs.com
+SESSION_DOMAIN=.example.com
 
+# PostgreSQL
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_DATABASE=anytdocs
-DB_USERNAME=anytdocs
+DB_DATABASE=docs
+DB_USERNAME=docs
 DB_PASSWORD=
+
+# Or MySQL:
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=docs
+# DB_USERNAME=docs
+# DB_PASSWORD=
 
 CACHE_STORE=redis
 SESSION_DRIVER=redis
@@ -52,7 +72,7 @@ MAIL_PORT=587
 MAIL_USERNAME=
 MAIL_PASSWORD=
 MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=hello@anytdocs.com
+MAIL_FROM_ADDRESS=hello@example.com
 MAIL_FROM_NAME="${APP_NAME}"
 
 FILESYSTEM_DISK=s3
@@ -77,14 +97,14 @@ GITHUB_CLIENT_SECRET=
 
 ## Shared env and storage (CloudDeck / Capistrano-style)
 
-Keep a **shared** `.env` (and `storage/`) outside each release so `composer install` → `package:discover` and later migrate/cache use PostgreSQL, not a missing SQLite file from `.env.example`.
+Keep a **shared** `.env` (and `storage/`) outside each release so `composer install` → `package:discover` and later migrate/cache use MySQL or PostgreSQL, not a missing SQLite file from `.env.example`.
 
 Required DB keys:
 
 ```env
-DB_CONNECTION=pgsql
+DB_CONNECTION=pgsql   # or mysql
 DB_HOST=127.0.0.1
-DB_PORT=5432
+DB_PORT=5432          # 3306 for mysql
 DB_DATABASE=your_db
 DB_USERNAME=your_user
 DB_PASSWORD=your_password

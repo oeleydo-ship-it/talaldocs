@@ -21,6 +21,7 @@ createInertiaApp({
                 return PlatformLayout;
             case name.startsWith('docs/'):
                 return null;
+            case name === 'install':
             case name.startsWith('auth/'):
             case name.startsWith('onboarding/'):
             case name.startsWith('invitations/'):
