@@ -3,69 +3,109 @@
 namespace App\Support;
 
 use App\Models\PlatformSetting;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use PDOException;
+use Throwable;
 
 class PlatformConfig
 {
+    /**
+     * True when platform_settings exists and the DB connection works.
+     * Safe during composer package:discover / missing .env / unavailable DB.
+     */
     public static function tableAvailable(): bool
     {
-        return Schema::hasTable('platform_settings');
+        try {
+            return Schema::hasTable('platform_settings');
+        } catch (QueryException|PDOException) {
+            return false;
+        } catch (Throwable $e) {
+            // Missing SQLite file and similar connection failures surface as RuntimeException.
+            if (self::isDatabaseUnavailable($e)) {
+                return false;
+            }
+
+            throw $e;
+        }
+    }
+
+    public static function isDatabaseUnavailable(Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'database file')
+            || str_contains($message, 'could not find driver')
+            || str_contains($message, 'connection refused')
+            || str_contains($message, 'sqlstate[')
+            || str_contains($message, 'no such file')
+            || str_contains($message, 'access denied')
+            || $e instanceof QueryException
+            || $e instanceof PDOException;
     }
 
     public static function apply(): void
     {
-        if (! self::tableAvailable()) {
-            return;
-        }
+        try {
+            if (! self::tableAvailable()) {
+                return;
+            }
 
-        $settings = PlatformSetting::instance();
+            $settings = PlatformSetting::instance();
 
-        if (filled($settings->app_name)) {
-            config(['app.name' => $settings->app_name]);
-        }
+            if (filled($settings->app_name)) {
+                config(['app.name' => $settings->app_name]);
+            }
 
-        if (filled($settings->app_domain)) {
-            config(['anytdocs.domain' => strtolower(trim($settings->app_domain))]);
-        }
+            if (filled($settings->app_domain)) {
+                config(['anytdocs.domain' => strtolower(trim($settings->app_domain))]);
+            }
 
-        $appName = (string) config('app.name', 'Docs');
-        $appUrl = rtrim((string) config('app.url'), '/');
-        $botSlug = preg_replace('/[^a-z0-9]+/i', '', $appName) ?: 'Docs';
-        config([
-            'ai.user_agent' => $botSlug.'Bot/1.0 (+'.$appUrl.')',
-        ]);
-
-        if (filled($settings->mail_host)) {
+            $appName = (string) config('app.name', 'Docs');
+            $appUrl = rtrim((string) config('app.url'), '/');
+            $botSlug = preg_replace('/[^a-z0-9]+/i', '', $appName) ?: 'Docs';
             config([
-                'mail.default' => $settings->mail_mailer ?: 'smtp',
-                'mail.mailers.smtp.host' => $settings->mail_host,
-                'mail.mailers.smtp.port' => $settings->mail_port ?? 587,
-                'mail.mailers.smtp.username' => $settings->mail_username,
-                'mail.mailers.smtp.password' => $settings->mail_password,
-                'mail.mailers.smtp.encryption' => $settings->mail_encryption ?: null,
+                'ai.user_agent' => $botSlug.'Bot/1.0 (+'.$appUrl.')',
             ]);
-        }
 
-        if (filled($settings->mail_from_address)) {
-            config([
-                'mail.from.address' => $settings->mail_from_address,
-                'mail.from.name' => $settings->mail_from_name ?: $settings->app_name,
-            ]);
-        }
-
-        if ($settings->stripe_enabled) {
-            if (filled($settings->stripe_key)) {
-                config(['services.stripe.key' => $settings->stripe_key]);
+            if (filled($settings->mail_host)) {
+                config([
+                    'mail.default' => $settings->mail_mailer ?: 'smtp',
+                    'mail.mailers.smtp.host' => $settings->mail_host,
+                    'mail.mailers.smtp.port' => $settings->mail_port ?? 587,
+                    'mail.mailers.smtp.username' => $settings->mail_username,
+                    'mail.mailers.smtp.password' => $settings->mail_password,
+                    'mail.mailers.smtp.encryption' => $settings->mail_encryption ?: null,
+                ]);
             }
 
-            if (filled($settings->stripe_secret)) {
-                config(['services.stripe.secret' => $settings->stripe_secret]);
+            if (filled($settings->mail_from_address)) {
+                config([
+                    'mail.from.address' => $settings->mail_from_address,
+                    'mail.from.name' => $settings->mail_from_name ?: $settings->app_name,
+                ]);
             }
 
-            if (filled($settings->stripe_webhook_secret)) {
-                config(['services.stripe.webhook_secret' => $settings->stripe_webhook_secret]);
+            if ($settings->stripe_enabled) {
+                if (filled($settings->stripe_key)) {
+                    config(['services.stripe.key' => $settings->stripe_key]);
+                }
+
+                if (filled($settings->stripe_secret)) {
+                    config(['services.stripe.secret' => $settings->stripe_secret]);
+                }
+
+                if (filled($settings->stripe_webhook_secret)) {
+                    config(['services.stripe.webhook_secret' => $settings->stripe_webhook_secret]);
+                }
             }
+        } catch (Throwable $e) {
+            if (self::isDatabaseUnavailable($e)) {
+                return;
+            }
+
+            throw $e;
         }
     }
 

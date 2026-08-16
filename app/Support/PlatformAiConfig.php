@@ -7,9 +7,9 @@ use App\Models\PlatformSetting;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class PlatformAiConfig
 {
@@ -55,32 +55,40 @@ class PlatformAiConfig
 
     public static function apply(): void
     {
-        if (! Schema::hasTable('platform_settings')) {
-            return;
-        }
+        try {
+            if (! PlatformConfig::tableAvailable()) {
+                return;
+            }
 
-        $settings = PlatformSetting::instance();
+            $settings = PlatformSetting::instance();
 
-        config([
-            'ai.enabled' => $settings->ai_enabled,
-            'ai.provider' => $settings->ai_provider,
-        ]);
+            config([
+                'ai.enabled' => $settings->ai_enabled,
+                'ai.provider' => $settings->ai_provider,
+            ]);
 
-        if (filled($settings->ai_api_key)) {
-            config(['ai.api_key' => $settings->ai_api_key]);
-        }
+            if (filled($settings->ai_api_key)) {
+                config(['ai.api_key' => $settings->ai_api_key]);
+            }
 
-        if (filled($settings->ai_model)) {
-            config(['ai.model' => $settings->ai_model]);
-        }
+            if (filled($settings->ai_model)) {
+                config(['ai.model' => $settings->ai_model]);
+            }
 
-        $baseUrl = self::resolveBaseUrl(
-            $settings->ai_provider,
-            $settings->ai_base_url,
-        );
+            $baseUrl = self::resolveBaseUrl(
+                $settings->ai_provider,
+                $settings->ai_base_url,
+            );
 
-        if ($baseUrl !== '') {
-            config(['ai.base_url' => $baseUrl]);
+            if ($baseUrl !== '') {
+                config(['ai.base_url' => $baseUrl]);
+            }
+        } catch (Throwable $e) {
+            if (PlatformConfig::isDatabaseUnavailable($e)) {
+                return;
+            }
+
+            throw $e;
         }
     }
 
@@ -147,7 +155,7 @@ class PlatformAiConfig
      */
     public static function toPublicArray(): array
     {
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return self::publicArrayFromConfig();
         }
 

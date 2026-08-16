@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -51,12 +52,24 @@ class AppServiceProvider extends ServiceProvider
 
     protected function configurePlatformSettings(): void
     {
-        PlatformConfig::apply();
+        try {
+            PlatformConfig::apply();
+        } catch (Throwable $e) {
+            if (! PlatformConfig::isDatabaseUnavailable($e)) {
+                throw $e;
+            }
+        }
     }
 
     protected function configurePlatformAi(): void
     {
-        PlatformAiConfig::apply();
+        try {
+            PlatformAiConfig::apply();
+        } catch (Throwable $e) {
+            if (! PlatformConfig::isDatabaseUnavailable($e)) {
+                throw $e;
+            }
+        }
     }
 
     /**
@@ -96,5 +109,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('ai-generation', fn (Request $request) => Limit::perMinute(5)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('docs-ask', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
         RateLimiter::for('contact', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
+        RateLimiter::for('install', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
     }
 }

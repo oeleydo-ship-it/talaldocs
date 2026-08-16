@@ -3,13 +3,12 @@
 namespace App\Support;
 
 use App\Models\PlatformSetting;
-use Illuminate\Support\Facades\Schema;
 
 class PlatformCloudflareConfig
 {
     public static function isConfigured(): bool
     {
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return false;
         }
 
@@ -22,7 +21,7 @@ class PlatformCloudflareConfig
 
     public static function apiToken(): ?string
     {
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return null;
         }
 
@@ -31,7 +30,7 @@ class PlatformCloudflareConfig
 
     public static function zoneId(): ?string
     {
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return null;
         }
 
@@ -40,7 +39,7 @@ class PlatformCloudflareConfig
 
     public static function accountId(): ?string
     {
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return null;
         }
 
@@ -51,7 +50,7 @@ class PlatformCloudflareConfig
     {
         $platform = strtolower((string) config('anytdocs.domain'));
 
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return $platform;
         }
 
@@ -79,7 +78,7 @@ class PlatformCloudflareConfig
      */
     public static function toPublicArray(): array
     {
-        if (! Schema::hasTable('platform_settings')) {
+        if (! PlatformConfig::tableAvailable()) {
             return self::emptyPublicArray();
         }
 

@@ -75,6 +75,23 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ```
 
+## Shared env and storage (CloudDeck / Capistrano-style)
+
+Keep a **shared** `.env` (and `storage/`) outside each release so `composer install` → `package:discover` and later migrate/cache use PostgreSQL, not a missing SQLite file from `.env.example`.
+
+Required DB keys:
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=your_db
+DB_USERNAME=your_user
+DB_PASSWORD=your_password
+```
+
+Platform settings are loaded from the DB on boot; if the connection is unavailable during discover, the app continues with config defaults.
+
 ## Build and migrate
 
 ```bash
