@@ -14,24 +14,31 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 use Throwable;
 
 class InstallController extends Controller
 {
-    public function show(): Response|RedirectResponse
+    public function show(): View|RedirectResponse
     {
         if (Installer::enabled() && ! Installer::needsInstall()) {
             return redirect()->route('home');
         }
 
         $status = Installer::status();
+        $driver = $status['driver'];
+        $driverLabel = match ($driver) {
+            'pgsql' => 'PostgreSQL',
+            'mysql', 'mariadb' => 'MySQL',
+            'sqlite' => 'SQLite',
+            default => $driver,
+        };
 
-        return Inertia::render('install', [
+        return view('install', [
             'status' => $status,
             'supportedDrivers' => Installer::supportedDrivers(),
             'appName' => (string) config('app.name', 'Docs'),
+            'driverLabel' => $driverLabel,
         ]);
     }
 

@@ -16,10 +16,8 @@ test('guests are redirected to install when no platform admin exists', function 
 test('install page is shown when setup is required', function () {
     $this->get(route('install.show'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->component('install')
-            ->where('status.needs_install', true)
-            ->has('supportedDrivers'));
+        ->assertSee('Create the first platform superadmin', false)
+        ->assertSee('Superadmin email', false);
 });
 
 test('superadmin can be created through the installer', function () {
