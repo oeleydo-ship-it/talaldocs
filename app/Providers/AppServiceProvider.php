@@ -35,6 +35,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Inertia SSR requires a Node process on 127.0.0.1:13714. Without it, Cloudflare
+        // returns 502 on every Inertia page (home, login, platform). Only enable when explicit.
+        config([
+            'inertia.ssr.enabled' => filter_var(env('INERTIA_SSR_ENABLED', false), FILTER_VALIDATE_BOOL),
+        ]);
+
         $this->configureDefaults();
         $this->configureAuthorization();
         $this->configureRateLimiting();
