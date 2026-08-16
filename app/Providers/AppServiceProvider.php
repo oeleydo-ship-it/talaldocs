@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\Workspace;
 use App\Policies\ProjectPolicy;
 use App\Policies\WorkspacePolicy;
+use App\Support\DisabledInertiaSsrGateway;
 use App\Support\PlatformAiConfig;
 use App\Support\PlatformConfig;
 use Carbon\CarbonImmutable;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\Ssr\Gateway as InertiaSsrGateway;
 use Throwable;
 
 class AppServiceProvider extends ServiceProvider
@@ -27,7 +29,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Never call the Node SSR server unless explicitly opted in. A hanging
+        // HTTP call to 127.0.0.1:13714 becomes Cloudflare 502 on Inertia pages.
+        if (! filter_var(env('INERTIA_SSR_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+            $this->app->bind(InertiaSsrGateway::class, DisabledInertiaSsrGateway::class);
+        }
     }
 
     /**
@@ -35,11 +41,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Inertia SSR requires a Node process on 127.0.0.1:13714. Without it, Cloudflare
-        // returns 502 on every Inertia page (home, login, platform). Only enable when explicit.
-        config([
-            'inertia.ssr.enabled' => filter_var(env('INERTIA_SSR_ENABLED', false), FILTER_VALIDATE_BOOL),
-        ]);
+        config(['inertia.ssr.enabled' => false]);
+
+        if (filter_var(env('INERTIA_SSR_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+            config(['inertia.ssr.enabled' => true]);
+        }
 
         $this->configureDefaults();
         $this->configureAuthorization();
