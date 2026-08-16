@@ -29,11 +29,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Never call the Node SSR server unless explicitly opted in. A hanging
-        // HTTP call to 127.0.0.1:13714 becomes Cloudflare 502 on Inertia pages.
-        if (! filter_var(env('INERTIA_SSR_ENABLED', false), FILTER_VALIDATE_BOOL)) {
-            $this->app->bind(InertiaSsrGateway::class, DisabledInertiaSsrGateway::class);
-        }
+        //
     }
 
     /**
@@ -41,11 +37,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        config(['inertia.ssr.enabled' => false]);
-
-        if (filter_var(env('INERTIA_SSR_ENABLED', false), FILTER_VALIDATE_BOOL)) {
-            config(['inertia.ssr.enabled' => true]);
-        }
+        // Inertia's ServiceProvider binds HttpGateway AFTER our register().
+        // Re-bind Gateway in booted() so SSR never HTTP-calls 127.0.0.1:13714.
+        $this->app->booted(function (): void {
+            config(['inertia.ssr.enabled' => false]);
+            $this->app->bind(InertiaSsrGateway::class, DisabledInertiaSsrGateway::class);
+        });
 
         $this->configureDefaults();
         $this->configureAuthorization();
@@ -58,7 +55,16 @@ class AppServiceProvider extends ServiceProvider
     protected function configureViews(): void
     {
         View::composer('app', function ($view): void {
-            $view->with('platformBranding', PlatformConfig::brandingForFrontend());
+            try {
+                $view->with('platformBranding', PlatformConfig::brandingForFrontend());
+            } catch (Throwable) {
+                $view->with('platformBranding', [
+                    'app_name' => (string) config('app.name', 'Docs'),
+                    'logo_url' => null,
+                    'favicon_url' => null,
+                    'tagline' => null,
+                ]);
+            }
         });
     }
 

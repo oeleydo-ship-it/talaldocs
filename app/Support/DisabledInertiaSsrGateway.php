@@ -7,7 +7,7 @@ use Inertia\Ssr\Response;
 
 /**
  * No-op SSR gateway. Prevents Inertia from HTTP-calling 127.0.0.1:13714
- * when no Node SSR process is running (Cloudflare 502 on /, /login, /platform).
+ * when no Node SSR process is running (Cloudflare 502 on Inertia pages).
  */
 class DisabledInertiaSsrGateway implements Gateway
 {

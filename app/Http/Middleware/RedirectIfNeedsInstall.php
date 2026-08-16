@@ -18,7 +18,7 @@ class RedirectIfNeedsInstall
             return $next($request);
         }
 
-        if ($request->routeIs('install.*') || $request->is('up') || $request->is('stripe/webhook')) {
+        if ($request->routeIs('install.*') || $request->is('up') || $request->is('stripe/webhook') || $request->is('__diag')) {
             return $next($request);
         }
 

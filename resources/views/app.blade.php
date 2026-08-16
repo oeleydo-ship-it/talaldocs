@@ -5,30 +5,20 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
                 const appearance = '{{ $appearance ?? "system" }}';
-
                 if (appearance === 'system') {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-                    if (prefersDark) {
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
                         document.documentElement.classList.add('dark');
                     }
                 }
             })();
         </script>
 
-        {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
-            html {
-                background-color: oklch(1 0 0);
-            }
-
-            html.dark {
-                background-color: oklch(0.145 0 0);
-            }
+            html { background-color: #fff; }
+            html.dark { background-color: #0a0a0a; }
         </style>
 
         @if(! empty($platformBranding['favicon_url'] ?? null))
@@ -39,13 +29,25 @@
         @endif
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-        @viteReactRefresh
-        @vite(['resources/css/app.css', 'resources/js/app.tsx'])
-        <x-inertia::head>
-            <title>{{ config('app.name', 'Laravel') }}</title>
-        </x-inertia::head>
+        {{-- Load built assets without relying on Vite font helpers / SSR. --}}
+        @php
+            $manifestPath = public_path('build/manifest.json');
+            $manifest = is_file($manifestPath)
+                ? json_decode((string) file_get_contents($manifestPath), true)
+                : null;
+            $cssFile = is_array($manifest) ? ($manifest['resources/css/app.css']['file'] ?? null) : null;
+            $jsFile = is_array($manifest) ? ($manifest['resources/js/app.tsx']['file'] ?? null) : null;
+        @endphp
+        @if ($cssFile)
+            <link rel="stylesheet" href="{{ asset('build/'.$cssFile) }}">
+        @endif
+        @if ($jsFile)
+            <script type="module" src="{{ asset('build/'.$jsFile) }}"></script>
+        @endif
+
+        @inertiaHead
     </head>
     <body class="font-sans antialiased">
-        <x-inertia::app />
+        @inertia
     </body>
 </html>

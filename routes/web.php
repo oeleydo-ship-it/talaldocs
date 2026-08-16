@@ -39,6 +39,21 @@ Route::post('install', [InstallController::class, 'store'])
     ->middleware('throttle:install')
     ->name('install.store');
 
+Route::get('__diag', function () {
+    $gateway = app(\Inertia\Ssr\Gateway::class);
+
+    return response()->json([
+        'ok' => true,
+        'app' => config('app.name'),
+        'php' => PHP_VERSION,
+        'laravel' => app()->version(),
+        'ssr_enabled' => config('inertia.ssr.enabled'),
+        'ssr_gateway' => $gateway::class,
+        'manifest' => is_file(public_path('build/manifest.json')),
+        'commit_hint' => 'a90bc5a+/diag',
+    ]);
+})->name('diag');
+
 Route::get('/', [MarketingController::class, 'home'])->name('home');
 Route::get('features', [MarketingController::class, 'features'])->name('marketing.features');
 Route::get('pricing', [MarketingController::class, 'pricing'])->name('marketing.pricing');
