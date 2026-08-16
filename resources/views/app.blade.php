@@ -39,10 +39,8 @@
         @endif
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-        @fonts
-
         @viteReactRefresh
-        @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+        @vite(['resources/css/app.css', 'resources/js/app.tsx'])
         <x-inertia::head>
             <title>{{ config('app.name', 'Laravel') }}</title>
         </x-inertia::head>

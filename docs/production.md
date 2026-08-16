@@ -112,6 +112,16 @@ DB_PASSWORD=your_password
 
 Platform settings are loaded from the DB on boot; if the connection is unavailable during discover, the app continues with config defaults.
 
+## Inertia SSR
+
+Leave SSR **disabled** unless you deliberately run a Node SSR worker:
+
+```env
+INERTIA_SSR_ENABLED=false
+```
+
+If `INERTIA_SSR_ENABLED=true` but nothing listens on `INERTIA_SSR_URL` (default `http://127.0.0.1:13714`), pages like `/login` and `/platform` can return **Cloudflare 502**.
+
 ## Build and migrate
 
 ```bash

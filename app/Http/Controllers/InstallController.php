@@ -109,6 +109,8 @@ class InstallController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('platform.dashboard');
+        return redirect()
+            ->route('platform.dashboard')
+            ->with('status', 'Platform superadmin created. Welcome!');
     }
 }
