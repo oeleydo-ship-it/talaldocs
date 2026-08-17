@@ -28,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'stripe/webhook',
         ]);
 
-        $middleware->prepend(ResolvePublicHost::class);
+        $middleware->append(ResolvePublicHost::class);
 
         $middleware->alias([
             'onboarded' => EnsureOnboarded::class,

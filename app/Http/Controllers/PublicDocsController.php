@@ -15,12 +15,13 @@ use App\Models\Post;
 use App\Models\Project;
 use App\Models\ProjectLanguage;
 use App\Models\Scopes\WorkspaceScope;
+use App\Services\DocsAskService;
 use App\Support\DocsNavigation;
 use App\Support\Markdown;
 use App\Support\PageSearch;
 use App\Support\PlanGate;
 use App\Support\PublicProjectResolver;
-use App\Services\DocsAskService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
@@ -133,11 +134,11 @@ class PublicDocsController extends Controller
             'prev' => $prev ? ['title' => $prev->title, 'slug' => $prev->slug] : null,
             'next' => $next ? ['title' => $next->title, 'slug' => $next->slug] : null,
             'hreflang' => $hreflang,
-            'basePath' => $model->docsBasePath().'/'.$versionModel->slug.'/'.$language->code,
-            'feedbackUrl' => $model->docsBasePath().'/feedback',
+            'basePath' => $model->visitorDocsBasePath().'/'.$versionModel->slug.'/'.$language->code,
+            'feedbackUrl' => $model->visitorDocsBasePath().'/feedback',
             'aiAskEnabled' => DocsAskService::isConfigured(),
-            'askUrl' => $model->docsBasePath().'/ask',
-            'searchUrl' => $model->docsBasePath().'/search',
+            'askUrl' => $model->visitorDocsBasePath().'/ask',
+            'searchUrl' => $model->visitorDocsBasePath().'/search',
         ]));
     }
 
@@ -188,14 +189,14 @@ class PublicDocsController extends Controller
                     'key' => 'announcements',
                     'title' => 'Announcements',
                     'description' => 'Product updates and important notices.',
-                    'viewAllUrl' => $model->docsBasePath().'/announcements',
+                    'viewAllUrl' => $model->visitorDocsBasePath().'/announcements',
                     'items' => $announcements,
                 ],
                 [
                     'key' => 'changelog',
                     'title' => 'Changelog',
                     'description' => 'Release notes and version history.',
-                    'viewAllUrl' => $model->docsBasePath().'/changelog',
+                    'viewAllUrl' => $model->visitorDocsBasePath().'/changelog',
                     'items' => $changelog,
                 ],
             ],
@@ -280,11 +281,11 @@ class PublicDocsController extends Controller
                 'published_at' => $post->published_at?->toIso8601String(),
                 'type' => $post->type->value,
             ],
-            'listUrl' => $model->docsBasePath().'/'.($type === PostType::Announcement ? 'announcements' : 'changelog'),
+            'listUrl' => $model->visitorDocsBasePath().'/'.($type === PostType::Announcement ? 'announcements' : 'changelog'),
         ]));
     }
 
-    public function search(Request $request, string $project): \Illuminate\Http\JsonResponse
+    public function search(Request $request, string $project): JsonResponse
     {
         $model = $this->resolver->fromRequest($request, $project);
         abort_unless($model instanceof Project, 404);
@@ -318,7 +319,7 @@ class PublicDocsController extends Controller
         return response()->json($results);
     }
 
-    public function ask(Request $request, string $project): \Illuminate\Http\JsonResponse
+    public function ask(Request $request, string $project): JsonResponse
     {
         $model = $this->resolver->fromRequest($request, $project);
         abort_unless($model instanceof Project, 404);
@@ -408,7 +409,7 @@ class PublicDocsController extends Controller
             ->findOrFail($page->documentation_version_id);
         $language = Language::query()->findOrFail($page->language_id);
 
-        return redirect($model->docsBasePath().'/'.$version->slug.'/'.$language->code.'/'.$page->slug);
+        return redirect($model->visitorDocsBasePath().'/'.$version->slug.'/'.$language->code.'/'.$page->slug);
     }
 
     public function sitemap(Request $request, string $project): HttpResponse
@@ -437,13 +438,13 @@ class PublicDocsController extends Controller
             ->map(function (Post $post) use ($model): string {
                 $segment = $post->type === PostType::Announcement ? 'announcements' : 'changelog';
 
-                return '<url><loc>'.e(url($model->docsBasePath().'/'.$segment.'/'.$post->slug)).'</loc></url>';
+                return '<url><loc>'.e(url($model->visitorDocsBasePath().'/'.$segment.'/'.$post->slug)).'</loc></url>';
             });
 
         $extra = collect([
-            '<url><loc>'.e(url($model->docsBasePath().'/directory')).'</loc></url>',
-            '<url><loc>'.e(url($model->docsBasePath().'/announcements')).'</loc></url>',
-            '<url><loc>'.e(url($model->docsBasePath().'/changelog')).'</loc></url>',
+            '<url><loc>'.e(url($model->visitorDocsBasePath().'/directory')).'</loc></url>',
+            '<url><loc>'.e(url($model->visitorDocsBasePath().'/announcements')).'</loc></url>',
+            '<url><loc>'.e(url($model->visitorDocsBasePath().'/changelog')).'</loc></url>',
         ]);
 
         $body = $urls->concat($extra)->concat($postUrls)->implode('');
@@ -460,7 +461,7 @@ class PublicDocsController extends Controller
 
         $allow = $model->visibility === ProjectVisibility::Public ? 'Allow: /' : 'Disallow: /';
 
-        return response("User-agent: *\n{$allow}\nSitemap: ".url($model->docsBasePath().'/sitemap.xml')."\n", 200, [
+        return response("User-agent: *\n{$allow}\nSitemap: ".url($model->visitorDocsBasePath().'/sitemap.xml')."\n", 200, [
             'Content-Type' => 'text/plain',
         ]);
     }
@@ -551,7 +552,7 @@ class PublicDocsController extends Controller
      */
     private function shellProps(Project $model, mixed $workspace): array
     {
-        $base = $model->docsBasePath();
+        $base = $model->visitorDocsBasePath();
 
         return [
             'project' => [
@@ -592,10 +593,10 @@ class PublicDocsController extends Controller
         $language = $this->language($model, null);
 
         if ($version) {
-            return $model->docsBasePath().'/'.$version->slug.'/'.$language->code;
+            return $model->visitorDocsBasePath().'/'.$version->slug.'/'.$language->code;
         }
 
-        return $model->docsBasePath();
+        return $model->visitorDocsBasePath();
     }
 
     private function docsHomeUrl(Project $model): string
@@ -610,10 +611,10 @@ class PublicDocsController extends Controller
         $firstPage = $this->publishedPages($model)->first();
 
         if ($version && $firstPage) {
-            return $model->docsBasePath().'/'.$version->slug.'/'.$language->code.'/'.$firstPage->slug;
+            return $model->visitorDocsBasePath().'/'.$version->slug.'/'.$language->code.'/'.$firstPage->slug;
         }
 
-        return $model->docsBasePath();
+        return $model->visitorDocsBasePath();
     }
 
     /**
@@ -670,7 +671,7 @@ class PublicDocsController extends Controller
             'title' => $post->title,
             'slug' => $post->slug,
             'excerpt' => $post->excerpt,
-            'url' => $model->docsBasePath().'/'.$segment.'/'.$post->slug,
+            'url' => $model->visitorDocsBasePath().'/'.$segment.'/'.$post->slug,
             'published_at' => $post->published_at?->toIso8601String(),
         ];
     }
@@ -682,7 +683,7 @@ class PublicDocsController extends Controller
             ->find($page->documentation_version_id);
         $language = Language::query()->find($page->language_id);
 
-        return $model->docsBasePath().'/'.($version?->slug ?? 'latest').'/'.($language?->code ?? 'en').'/'.$page->slug;
+        return $model->visitorDocsBasePath().'/'.($version?->slug ?? 'latest').'/'.($language?->code ?? 'en').'/'.$page->slug;
     }
 
     /**

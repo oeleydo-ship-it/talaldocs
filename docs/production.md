@@ -205,6 +205,7 @@ After deploy, verify:
 - [ ] Queue worker is running (`php artisan queue:monitor` or Platform → System)
 - [ ] `POST /stripe/webhook` returns 400 without a valid signature (proves route is live)
 - [ ] A published project loads at `/docs/{subdomain}/latest/en/{slug}` or subdomain host
+- [ ] A verified custom hostname serves docs at `/` (not the marketing homepage)
 - [ ] Image uploads write to S3 and render in public docs
 
 ## Local vs production session domain

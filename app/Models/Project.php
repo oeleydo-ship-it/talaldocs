@@ -7,12 +7,14 @@ use App\Enums\DocsTemplate;
 use App\Enums\DomainStatus;
 use App\Enums\ProjectVisibility;
 use App\Models\Concerns\BelongsToWorkspace;
+use App\Support\PublicProjectResolver;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
@@ -134,6 +136,29 @@ class Project extends Model
     public function docsBasePath(): string
     {
         return '/docs/'.$this->publicPathKey();
+    }
+
+    /**
+     * Path prefix for public docs links on the current request.
+     * Empty on verified custom hosts so pages live at `/latest/en/{slug}`.
+     */
+    public function visitorDocsBasePath(?Request $request = null): string
+    {
+        try {
+            $request ??= request();
+        } catch (\Throwable) {
+            return $this->docsBasePath();
+        }
+
+        if (! $request instanceof Request) {
+            return $this->docsBasePath();
+        }
+
+        if (app(PublicProjectResolver::class)->servesProjectAtCustomHost($request, $this)) {
+            return '';
+        }
+
+        return $this->docsBasePath();
     }
 
     public function publicUrl(?string $platformDomain = null): string
