@@ -32,6 +32,9 @@ use Illuminate\Support\Facades\Storage;
  * @property string|null $stripe_key
  * @property string|null $stripe_secret
  * @property string|null $stripe_webhook_secret
+ * @property bool $billing_enforced
+ * @property int $trial_days
+ * @property bool $trial_requires_card
  * @property bool $cloudflare_enabled
  * @property string|null $cloudflare_api_token
  * @property string|null $cloudflare_zone_id
@@ -71,6 +74,9 @@ class PlatformSetting extends Model
         'stripe_key',
         'stripe_secret',
         'stripe_webhook_secret',
+        'billing_enforced',
+        'trial_days',
+        'trial_requires_card',
         'cloudflare_enabled',
         'cloudflare_api_token',
         'cloudflare_zone_id',
@@ -89,6 +95,9 @@ class PlatformSetting extends Model
         'ai_model' => 'gpt-4o-mini',
         'mail_mailer' => 'smtp',
         'stripe_enabled' => false,
+        'billing_enforced' => true,
+        'trial_days' => 14,
+        'trial_requires_card' => true,
         'cloudflare_enabled' => false,
         'cloudflare_auto_subdomains' => false,
     ];
@@ -101,6 +110,9 @@ class PlatformSetting extends Model
         return [
             'ai_enabled' => 'boolean',
             'stripe_enabled' => 'boolean',
+            'billing_enforced' => 'boolean',
+            'trial_days' => 'integer',
+            'trial_requires_card' => 'boolean',
             'cloudflare_enabled' => 'boolean',
             'cloudflare_auto_subdomains' => 'boolean',
             'mail_port' => 'integer',

@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Http;
 
 class StripeCheckout
 {
+    public function __construct(private BillingAccess $billing) {}
+
     public function isConfigured(): bool
     {
         return filled(config('services.stripe.secret'));
@@ -27,11 +29,15 @@ class StripeCheckout
             return null;
         }
 
+        $trialDays = $this->billing->remainingTrialDays($workspace);
+        $collectCard = $this->billing->trialRequiresCard() || $trialDays <= 0 || $this->billing->onTrial($workspace);
+
         $payload = [
             'mode' => 'subscription',
             'success_url' => $successUrl,
             'cancel_url' => $cancelUrl,
             'client_reference_id' => (string) $workspace->id,
+            'payment_method_collection' => $collectCard ? 'always' : 'if_required',
             'line_items' => [[
                 'price' => $plan->stripe_price_id,
                 'quantity' => 1,
@@ -41,6 +47,16 @@ class StripeCheckout
                 'plan_id' => (string) $plan->id,
             ],
         ];
+
+        if ($trialDays > 0) {
+            $payload['subscription_data'] = [
+                'trial_period_days' => $trialDays,
+                'metadata' => [
+                    'workspace_id' => (string) $workspace->id,
+                    'plan_id' => (string) $plan->id,
+                ],
+            ];
+        }
 
         if (filled($workspace->stripe_id)) {
             $payload['customer'] = $workspace->stripe_id;

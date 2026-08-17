@@ -18,17 +18,51 @@ type Plan = {
     features: Record<string, boolean>;
 };
 
+type Trial = {
+    billing_enforced: boolean;
+    requires_card: boolean;
+    active: boolean;
+    subscribed: boolean;
+    ends_at: string | null;
+    days_remaining: number;
+    trial_days: number;
+    trial_label: string;
+};
+
 type Props = {
     currentPlan: Plan | null;
     plans: Plan[];
     stripeConfigured: boolean;
     stripePortalAvailable: boolean;
+    trial: Trial;
+    subscriptionStatus: string | null;
 };
 
-export default function BillingShow({ currentPlan, plans, stripeConfigured, stripePortalAvailable }: Props) {
+export default function BillingShow({
+    currentPlan,
+    plans,
+    stripeConfigured,
+    stripePortalAvailable,
+    trial,
+    subscriptionStatus,
+}: Props) {
     const form = useForm({ plan_id: currentPlan?.id ?? 0 });
     const portal = useForm({});
-    const pageErrors = usePage().props.errors as Record<string, string>;
+    const page = usePage<{ flash?: { warning?: string }; errors: Record<string, string> }>();
+    const pageErrors = page.props.errors;
+    const warning = page.props.flash?.warning;
+
+    const description = trial.billing_enforced
+        ? trial.subscribed
+            ? 'Your subscription is active. Change plans or manage billing in Stripe.'
+            : trial.active
+              ? `${trial.days_remaining} day${trial.days_remaining === 1 ? '' : 's'} left in your free trial. Subscribe to keep access after it ends.`
+              : trial.requires_card && !trial.ends_at
+                ? `Add a payment method to start your ${trial.trial_label} trial.`
+                : 'Your trial has ended. Subscribe to continue using the app.'
+        : stripeConfigured
+          ? 'Paid plans open Stripe Checkout. Free plans apply immediately.'
+          : 'Stripe is not configured. Plan changes apply immediately for local testing.';
 
     return (
         <>
@@ -36,11 +70,7 @@ export default function BillingShow({ currentPlan, plans, stripeConfigured, stri
             <PageContainer>
                 <PageHeader
                     title="Billing"
-                    description={
-                        stripeConfigured
-                            ? 'Paid plans open Stripe Checkout. Free plans apply immediately.'
-                            : 'Stripe is not configured. Plan changes apply immediately for local testing.'
-                    }
+                    description={description}
                     actions={
                         stripePortalAvailable ? (
                             <Button variant="outline" onClick={() => portal.post('/billing/portal')}>
@@ -50,6 +80,45 @@ export default function BillingShow({ currentPlan, plans, stripeConfigured, stri
                         ) : undefined
                     }
                 />
+
+                {warning && (
+                    <Alert variant="destructive">
+                        <AlertTitle>Subscription required</AlertTitle>
+                        <AlertDescription>{warning}</AlertDescription>
+                    </Alert>
+                )}
+
+                {trial.billing_enforced && trial.active && !trial.subscribed && (
+                    <Alert>
+                        <AlertTitle>Free trial</AlertTitle>
+                        <AlertDescription>
+                            {trial.days_remaining} day{trial.days_remaining === 1 ? '' : 's'} remaining
+                            {trial.ends_at ? ` (ends ${new Date(trial.ends_at).toLocaleDateString()})` : ''}. Choose a
+                            paid plan to subscribe before access is paused.
+                        </AlertDescription>
+                    </Alert>
+                )}
+
+                {trial.billing_enforced && trial.subscribed && (
+                    <Alert>
+                        <AlertTitle>Subscription active</AlertTitle>
+                        <AlertDescription>
+                            Stripe status: {subscriptionStatus ?? 'active'}. You can change plans below or manage payment
+                            methods in the customer portal.
+                        </AlertDescription>
+                    </Alert>
+                )}
+
+                {trial.billing_enforced && !trial.active && !trial.subscribed && (
+                    <Alert variant="destructive">
+                        <AlertTitle>{trial.requires_card && !trial.ends_at ? 'Start your trial' : 'Trial ended'}</AlertTitle>
+                        <AlertDescription>
+                            {trial.requires_card && !trial.ends_at
+                                ? `Subscribe below to start a ${trial.trial_label} trial. A credit card is required.`
+                                : 'Subscribe to a paid plan to restore dashboard, editor, and project access.'}
+                        </AlertDescription>
+                    </Alert>
+                )}
 
                 {!stripeConfigured && (
                     <Alert>
@@ -73,6 +142,14 @@ export default function BillingShow({ currentPlan, plans, stripeConfigured, stri
                         const isPaid = plan.price_cents > 0;
                         const requiresStripe = isPaid && stripeConfigured;
                         const stripeReady = !requiresStripe || Boolean(plan.stripe_price_id);
+                        const cta =
+                            currentPlan?.id === plan.id && trial.subscribed
+                                ? 'Selected'
+                                : isPaid && stripeConfigured
+                                  ? trial.requires_card && !trial.subscribed && !trial.active
+                                    ? 'Start trial with card'
+                                    : 'Subscribe with Stripe'
+                                  : 'Choose plan';
 
                         return (
                             <Card
@@ -119,18 +196,18 @@ export default function BillingShow({ currentPlan, plans, stripeConfigured, stri
                                         className="w-full"
                                         variant={plan.slug === 'pro' ? 'default' : 'outline'}
                                         disabled={
-                                            currentPlan?.id === plan.id || form.processing || !stripeReady
+                                            (currentPlan?.id === plan.id && (trial.subscribed || !trial.billing_enforced))
+                                            || form.processing
+                                            || !stripeReady
                                         }
                                         onClick={() => {
                                             form.setData('plan_id', plan.id);
                                             form.post('/billing/checkout');
                                         }}
                                     >
-                                        {currentPlan?.id === plan.id
+                                        {currentPlan?.id === plan.id && !trial.billing_enforced
                                             ? 'Selected'
-                                            : isPaid && stripeConfigured
-                                              ? 'Subscribe with Stripe'
-                                              : 'Choose plan'}
+                                            : cta}
                                     </Button>
                                 </CardContent>
                             </Card>

@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ResolvesWorkspaceProject;
 use App\Models\Plan;
 use App\Support\Audit;
-use App\Support\PlanBlueprint;
+use App\Support\BillingAccess;
 use App\Support\PlanEnforcer;
 use App\Support\StripeCheckout;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +21,7 @@ class BillingController extends Controller
         private Audit $audit,
         private StripeCheckout $stripe,
         private PlanEnforcer $enforcer,
+        private BillingAccess $billing,
     ) {}
 
     public function show(Request $request): Response
@@ -33,6 +34,8 @@ class BillingController extends Controller
             'plans' => Plan::query()->where('is_active', true)->orderBy('price_cents')->get(),
             'stripeConfigured' => $this->stripe->isConfigured(),
             'stripePortalAvailable' => $this->stripe->portalUrl($workspace, route('billing.show')) !== null,
+            'trial' => $this->billing->summary($workspace),
+            'subscriptionStatus' => $workspace->subscription_status,
         ]);
     }
 

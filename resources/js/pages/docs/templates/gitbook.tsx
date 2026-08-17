@@ -155,7 +155,7 @@ export default function GitbookDocsTemplate({
                     leading={
                         <Sheet>
                             <SheetTrigger asChild>
-                                <Button variant="ghost" size="icon" className="lg:hidden">
+                                <Button variant="ghost" size="icon" className="shrink-0 lg:hidden">
                                     <Menu className="size-4" />
                                 </Button>
                             </SheetTrigger>

@@ -18,7 +18,6 @@ use App\Services\DocsIndexService;
 use App\Rules\HeaderMenuUrl;
 use App\Support\Audit;
 use App\Support\PlanGate;
-use App\Support\PlatformCloudflareConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -81,14 +80,6 @@ class ProjectSettingsController extends Controller
                 'versioning' => $this->plans->hasFeature($workspace, 'versioning'),
                 'localization' => $this->plans->hasFeature($workspace, 'localization'),
                 'advanced_branding' => $this->plans->hasFeature($workspace, 'advanced_branding'),
-            ],
-            'appDomain' => config('anytdocs.domain'),
-            'dns' => [
-                'cloudflare_configured' => PlatformCloudflareConfig::isConfigured(),
-                'cname_target' => PlatformCloudflareConfig::fallbackOrigin(),
-                'tenant_subdomain_cname' => PlatformCloudflareConfig::isConfigured()
-                    ? PlatformCloudflareConfig::fallbackOrigin()
-                    : strtolower($model->subdomain.'.'.config('anytdocs.domain')),
             ],
             'aiIndex' => $this->docsIndex->stats($model),
         ]);

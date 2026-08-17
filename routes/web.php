@@ -16,6 +16,8 @@ use App\Http\Controllers\Editor\BlockController;
 use App\Http\Controllers\Editor\MarkdownImportController;
 use App\Http\Controllers\Editor\PageController;
 use App\Http\Controllers\Editor\UploadController;
+use App\Http\Controllers\InstallController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\OnboardingController;
@@ -23,14 +25,14 @@ use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectSettingsController;
 use App\Http\Controllers\PublicDocsController;
-use App\Http\Controllers\InstallController;
-use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\WorkspaceController;
 use App\Http\Middleware\EnsureNotSuspended;
 use App\Http\Middleware\EnsureOnboarded;
+use App\Http\Middleware\EnsureSubscribed;
 use App\Http\Middleware\RedirectIfOnboarded;
 use Illuminate\Support\Facades\Route;
+use Inertia\Ssr\Gateway;
 
 Route::post('stripe/webhook', StripeWebhookController::class)->name('stripe.webhook');
 
@@ -40,7 +42,7 @@ Route::post('install', [InstallController::class, 'store'])
     ->name('install.store');
 
 Route::get('__diag', function () {
-    $gateway = app(\Inertia\Ssr\Gateway::class);
+    $gateway = app(Gateway::class);
 
     return response()->json([
         'ok' => true,
@@ -108,7 +110,7 @@ Route::middleware(['auth', 'verified', EnsureNotSuspended::class])->group(functi
         Route::post('onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     });
 
-    Route::middleware(EnsureOnboarded::class)->group(function () {
+    Route::middleware([EnsureOnboarded::class, EnsureSubscribed::class])->group(function () {
         Route::get('dashboard', DashboardController::class)->name('dashboard');
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
@@ -169,7 +171,9 @@ Route::middleware(['auth', 'verified', EnsureNotSuspended::class])->group(functi
         Route::patch('blocks/{block}', [BlockController::class, 'update'])->name('blocks.update');
         Route::delete('blocks/{block}', [BlockController::class, 'destroy'])->name('blocks.destroy');
 
-        Route::post('workspace/switch/{workspace}', [WorkspaceController::class, 'switch'])->name('workspace.switch');
+        Route::post('workspace/switch/{workspace}', [WorkspaceController::class, 'switch'])
+            ->withoutMiddleware(EnsureSubscribed::class)
+            ->name('workspace.switch');
 
         Route::get('members', [MemberController::class, 'index'])->name('members.index');
         Route::post('members/invitations', [MemberController::class, 'invite'])->name('members.invite');
@@ -178,9 +182,15 @@ Route::middleware(['auth', 'verified', EnsureNotSuspended::class])->group(functi
         Route::patch('members/{member}', [MemberController::class, 'updateRole'])->name('members.update');
         Route::delete('members/{member}', [MemberController::class, 'destroy'])->name('members.destroy');
 
-        Route::get('billing', [BillingController::class, 'show'])->name('billing.show');
-        Route::post('billing/checkout', [BillingController::class, 'checkout'])->name('billing.checkout');
-        Route::post('billing/portal', [BillingController::class, 'portal'])->name('billing.portal');
+        Route::get('billing', [BillingController::class, 'show'])
+            ->withoutMiddleware(EnsureSubscribed::class)
+            ->name('billing.show');
+        Route::post('billing/checkout', [BillingController::class, 'checkout'])
+            ->withoutMiddleware(EnsureSubscribed::class)
+            ->name('billing.checkout');
+        Route::post('billing/portal', [BillingController::class, 'portal'])
+            ->withoutMiddleware(EnsureSubscribed::class)
+            ->name('billing.portal');
 
         Route::get('analytics', AnalyticsController::class)->name('analytics.show');
         Route::get('analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');

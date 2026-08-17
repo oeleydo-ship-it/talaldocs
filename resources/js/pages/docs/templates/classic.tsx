@@ -128,7 +128,7 @@ export default function ClassicDocsTemplate(props: PublicDocsProps) {
                     brandHref={homeHref}
                     project={project}
                     brandChildren={
-                        <p className="text-xs text-muted-foreground">
+                        <p className="truncate text-xs text-muted-foreground">
                             {version.name} · {locale.name}
                         </p>
                     }
@@ -136,7 +136,7 @@ export default function ClassicDocsTemplate(props: PublicDocsProps) {
                     leading={
                         <Sheet>
                             <SheetTrigger asChild>
-                                <Button variant="outline" size="icon" className="lg:hidden">
+                                <Button variant="outline" size="icon" className="shrink-0 lg:hidden">
                                     <Menu className="size-4" />
                                 </Button>
                             </SheetTrigger>

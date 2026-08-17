@@ -46,6 +46,9 @@ type PaymentSettings = {
     stripe_secret_masked: string | null;
     stripe_webhook_secret_set: boolean;
     stripe_webhook_secret_masked: string | null;
+    billing_enforced: boolean;
+    trial_days: number;
+    trial_requires_card: boolean;
     configured: boolean;
 };
 
@@ -471,9 +474,12 @@ export function PlatformSettingsPanel({
     const submitPayment = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const form = event.currentTarget;
-        const payload: Record<string, string | boolean | null> = {
+        const payload: Record<string, string | boolean | number | null> = {
             stripe_enabled: (form.elements.namedItem('stripe_enabled') as HTMLInputElement).checked,
             stripe_key: (form.elements.namedItem('stripe_key') as HTMLInputElement).value,
+            billing_enforced: (form.elements.namedItem('billing_enforced') as HTMLInputElement).checked,
+            trial_days: Number((form.elements.namedItem('trial_days') as HTMLSelectElement).value),
+            trial_requires_card: (form.elements.namedItem('trial_requires_card') as HTMLInputElement).checked,
         };
 
         if (stripeSecret.trim() !== '') {
@@ -784,6 +790,53 @@ export function PlatformSettingsPanel({
                                     defaultChecked={paymentSettings.stripe_enabled}
                                 />
                                 Enable Stripe billing
+                            </label>
+                            <label className="flex items-start gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    name="billing_enforced"
+                                    className="mt-0.5"
+                                    defaultChecked={paymentSettings.billing_enforced}
+                                />
+                                <span>
+                                    Require an active subscription or trial to use the app
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        Ignored when Stripe is not configured, so workspaces are never locked out without a payment
+                                        provider.
+                                    </span>
+                                </span>
+                            </label>
+                            <div className="grid gap-2">
+                                <Label htmlFor="trial_days">Free trial length</Label>
+                                <select
+                                    id="trial_days"
+                                    name="trial_days"
+                                    defaultValue={String(paymentSettings.trial_days)}
+                                    className="rounded-md border bg-transparent px-3 py-2 text-sm"
+                                >
+                                    <option value="7">7 days</option>
+                                    <option value="14">14 days</option>
+                                    <option value="30">30 days</option>
+                                    <option value="0">1 month</option>
+                                </select>
+                                <p className="text-xs text-muted-foreground">
+                                    New workspaces receive this trial. Paid checkout also uses the remaining trial days.
+                                </p>
+                            </div>
+                            <label className="flex items-start gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    name="trial_requires_card"
+                                    className="mt-0.5"
+                                    defaultChecked={paymentSettings.trial_requires_card}
+                                />
+                                <span>
+                                    Require credit card for trial
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        On: workspaces start a Stripe Checkout trial and must add a card. Off: the trial starts
+                                        immediately without a card.
+                                    </span>
+                                </span>
                             </label>
                             <div className="grid gap-2">
                                 <Label htmlFor="stripe_key">Publishable key</Label>

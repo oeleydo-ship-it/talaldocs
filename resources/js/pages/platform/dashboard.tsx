@@ -82,6 +82,9 @@ type Props = {
         stripe_secret_masked: string | null;
         stripe_webhook_secret_set: boolean;
         stripe_webhook_secret_masked: string | null;
+        billing_enforced: boolean;
+        trial_days: number;
+        trial_requires_card: boolean;
         configured: boolean;
     };
     aiSettings: AiSettings;

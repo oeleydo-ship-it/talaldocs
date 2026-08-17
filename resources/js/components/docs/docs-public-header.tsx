@@ -54,12 +54,13 @@ export function DocsPublicHeader({
         >
             <div
                 className={cn(
-                    'grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-4',
+                    'flex h-14 items-center gap-3 px-4',
+                    'lg:grid lg:grid-cols-[1fr_auto_1fr]',
                     isGitbook ? 'w-full lg:px-6' : 'mx-auto max-w-6xl',
                     innerClassName,
                 )}
             >
-                <div className="flex min-w-0 items-center justify-start gap-3">
+                <div className="flex min-w-0 flex-1 items-center justify-start gap-3 lg:min-w-min">
                     {leading}
                     <DocsHeaderBrand
                         href={brandHref}
@@ -75,7 +76,7 @@ export function DocsPublicHeader({
                         <DocsHeaderNav links={centerLinks} placement="center" />
                     ) : null}
                 </div>
-                <div className="flex min-w-0 items-center justify-end gap-2">
+                <div className="flex shrink-0 items-center justify-end gap-2">
                     {actions}
                     <DocsHeaderNav links={endLinks} placement="end" emphasizePrimary />
                 </div>

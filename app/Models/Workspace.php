@@ -19,12 +19,18 @@ use Illuminate\Support\Carbon;
  * @property string $slug
  * @property string|null $company_name
  * @property int $plan_id
+ * @property string|null $stripe_id
+ * @property string|null $subscription_status
+ * @property string|null $pm_type
+ * @property string|null $pm_last_four
+ * @property Carbon|null $trial_ends_at
+ * @property Carbon|null $suspended_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Plan $plan
  */
-#[Fillable(['name', 'slug', 'company_name', 'plan_id', 'stripe_id', 'pm_type', 'pm_last_four', 'trial_ends_at', 'suspended_at'])]
+#[Fillable(['name', 'slug', 'company_name', 'plan_id', 'stripe_id', 'subscription_status', 'pm_type', 'pm_last_four', 'trial_ends_at', 'suspended_at'])]
 class Workspace extends Model
 {
     /** @use HasFactory<WorkspaceFactory> */

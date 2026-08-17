@@ -141,11 +141,17 @@ class PlatformSettingsSectionsController extends Controller
             'stripe_key' => ['nullable', 'string', 'max:255'],
             'stripe_secret' => ['nullable', 'string', 'max:500'],
             'stripe_webhook_secret' => ['nullable', 'string', 'max:500'],
+            'billing_enforced' => ['required', 'boolean'],
+            'trial_days' => ['required', 'integer', Rule::in([0, 7, 14, 30])],
+            'trial_requires_card' => ['required', 'boolean'],
         ]);
 
         $settings = PlatformSetting::instance();
 
         $settings->stripe_enabled = $data['stripe_enabled'];
+        $settings->billing_enforced = $data['billing_enforced'];
+        $settings->trial_days = $data['trial_days'];
+        $settings->trial_requires_card = $data['trial_requires_card'];
         $settings->stripe_key = filled($data['stripe_key'] ?? null) ? $data['stripe_key'] : null;
 
         if (filled($data['stripe_secret'] ?? null)) {
@@ -161,6 +167,9 @@ class PlatformSettingsSectionsController extends Controller
 
         $this->audit->record($request->user(), 'platform.payment_settings_updated', null, [
             'stripe_enabled' => $settings->stripe_enabled,
+            'billing_enforced' => $settings->billing_enforced,
+            'trial_days' => $settings->trial_days,
+            'trial_requires_card' => $settings->trial_requires_card,
         ]);
 
         Inertia::flash('toast', [

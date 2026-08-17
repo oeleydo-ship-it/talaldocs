@@ -6,7 +6,6 @@ use App\Enums\AiGenerationJobStatus;
 use App\Enums\PageStatus;
 use App\Enums\ProjectVisibility;
 use App\Enums\WorkspaceRole;
-use App\Support\AiGenerationJobDispatcher;
 use App\Models\AiGenerationJob;
 use App\Models\DocumentationVersion;
 use App\Models\Language;
@@ -17,12 +16,15 @@ use App\Models\ProjectLanguage;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\AiDocumentationGenerator;
+use App\Support\AiGenerationJobDispatcher;
+use App\Support\BillingAccess;
 use App\Support\Markdown;
 use App\Support\PlanGate;
 use App\Support\Subdomain;
 use App\Support\UrlSafetyValidator;
 use App\Support\WelcomePageContent;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CompleteOnboarding
 {
@@ -75,6 +77,8 @@ class CompleteOnboarding
                 'company_name' => $data['company_name'],
                 'plan_id' => $plan->id,
             ]);
+
+            app(BillingAccess::class)->startLocalTrialIfEligible($workspace);
 
             $workspace->members()->create([
                 'user_id' => $user->id,
@@ -167,7 +171,7 @@ class CompleteOnboarding
 
         try {
             app(UrlSafetyValidator::class)->assertSafe($websiteUrl);
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             return;
         }
 

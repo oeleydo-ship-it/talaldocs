@@ -188,6 +188,9 @@ class PlatformConfig
                 'stripe_secret_masked' => null,
                 'stripe_webhook_secret_set' => false,
                 'stripe_webhook_secret_masked' => null,
+                'billing_enforced' => false,
+                'trial_days' => 14,
+                'trial_requires_card' => true,
                 'configured' => false,
             ];
         }
@@ -201,6 +204,11 @@ class PlatformConfig
             'stripe_secret_masked' => PlatformSetting::maskedSecret($settings->stripe_secret),
             'stripe_webhook_secret_set' => filled($settings->stripe_webhook_secret),
             'stripe_webhook_secret_masked' => PlatformSetting::maskedSecret($settings->stripe_webhook_secret),
+            'billing_enforced' => (bool) $settings->billing_enforced,
+            'trial_days' => in_array((int) $settings->trial_days, [7, 14, 30, 0], true)
+                ? (int) $settings->trial_days
+                : 14,
+            'trial_requires_card' => (bool) $settings->trial_requires_card,
             'configured' => $settings->stripe_enabled
                 && filled($settings->stripe_key)
                 && filled($settings->stripe_secret),

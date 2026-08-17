@@ -68,6 +68,9 @@ it('allows platform admin to save payment settings', function (): void {
             'stripe_key' => 'pk_test_123',
             'stripe_secret' => 'sk_test_456',
             'stripe_webhook_secret' => 'whsec_789',
+            'billing_enforced' => true,
+            'trial_days' => 14,
+            'trial_requires_card' => true,
         ])
         ->assertRedirect(route('platform.dashboard', ['tab' => 'settings', 'section' => 'payment']));
 
@@ -76,7 +79,10 @@ it('allows platform admin to save payment settings', function (): void {
     expect($settings->stripe_enabled)->toBeTrue()
         ->and($settings->stripe_key)->toBe('pk_test_123')
         ->and($settings->stripe_secret)->toBe('sk_test_456')
-        ->and($settings->stripe_webhook_secret)->toBe('whsec_789');
+        ->and($settings->stripe_webhook_secret)->toBe('whsec_789')
+        ->and($settings->billing_enforced)->toBeTrue()
+        ->and($settings->trial_days)->toBe(14)
+        ->and($settings->trial_requires_card)->toBeTrue();
 });
 
 it('renders settings tabs on platform dashboard', function (): void {

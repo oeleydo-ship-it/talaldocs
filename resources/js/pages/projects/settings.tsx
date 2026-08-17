@@ -26,12 +26,6 @@ type Domain = {
     ssl_ready: boolean;
 };
 
-type DnsSettings = {
-    cloudflare_configured: boolean;
-    cname_target: string;
-    tenant_subdomain_cname: string;
-};
-
 type HeaderLink = { label: string; url: string };
 
 type Props = {
@@ -60,8 +54,6 @@ type Props = {
     languages: { id: number; language_id: number; code: string; name: string; is_default: boolean }[];
     availableLanguages: { id: number; code: string; name: string }[];
     features: Record<string, boolean>;
-    appDomain: string;
-    dns: DnsSettings;
     aiIndex: {
         pages: number;
         chunks: number;
@@ -158,8 +150,6 @@ export default function ProjectSettings({
     languages,
     availableLanguages,
     features,
-    appDomain,
-    dns,
     aiIndex,
 }: Props) {
     const [activeTab, setActiveTab] = useState<SettingsTab>(() => tabFromHash(window.location.hash));
@@ -790,30 +780,11 @@ export default function ProjectSettings({
                             <CardHeader>
                                 <CardTitle>Custom domains</CardTitle>
                                 <CardDescription>
-                                    {dns.cloudflare_configured
-                                        ? 'Connect your hostname with Cloudflare SSL for SaaS. Point a CNAME to the platform fallback origin and complete DNS validation.'
-                                        : `Point a CNAME to ${project.subdomain}.${appDomain} and add the TXT challenge.`}
+                                    Add a hostname to publish docs on your own domain. Verification records appear after you add it.
                                     {!features.custom_domain && ' Custom domains require Pro or higher.'}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                                    <p>
-                                        <strong className="text-foreground">Tenant subdomain:</strong>{' '}
-                                        <code>{project.subdomain}.{appDomain}</code> should CNAME to{' '}
-                                        <code>{dns.tenant_subdomain_cname}</code>
-                                        {dns.cloudflare_configured && ' (managed in Cloudflare).'}
-                                    </p>
-                                    <p className="mt-2">
-                                        <strong className="text-foreground">Localhost:</strong> public docs use path URLs at{' '}
-                                        <code>/docs/{'{project-slug}'}</code> because host-based routing is not available on{' '}
-                                        <code>php artisan serve</code>.
-                                    </p>
-                                    <p className="mt-2">
-                                        <strong className="text-foreground">Production:</strong> verified custom domains become the
-                                        primary public URL. Active primary domains redirect traffic away from the platform subdomain.
-                                    </p>
-                                </div>
                                 <form
                                     className="flex gap-2"
                                     onSubmit={(event) => {
