@@ -98,6 +98,7 @@ type Props = {
         cloudflare_api_token_masked: string | null;
         configured: boolean;
         app_domain: string;
+        cname_target: string | null;
     };
     recentActivity: { id: number; action: string; admin: string | null; metadata: Record<string, unknown> | null; created_at: string | null }[];
     workspaces: { id: number; name: string; slug: string; plan: string | null; plan_id: number | null; projects_count: number; suspended_at: string | null; stripe_id: boolean; created_at: string | null }[];
@@ -112,7 +113,7 @@ type Props = {
         features: Record<string, boolean>;
         is_active: boolean;
     }[];
-    allDomains: { id: number; hostname: string; status: string; is_primary: boolean; project: string | null; project_slug: string | null; verified_at: string | null; error_message: string | null; last_checked_at: string | null }[];
+    allDomains: { id: number; hostname: string; status: string; is_primary: boolean; project: string | null; project_slug: string | null; verified_at: string | null; error_message: string | null; ssl_status: string | null; ssl_ready: boolean; last_checked_at: string | null }[];
     failedDomains: { id: number; hostname: string; project: string | null; error_message: string | null; last_checked_at: string | null }[];
     reports: { id: number; reason: string; details: string | null; status: string; project: string | null; page: string | null; created_at: string | null }[];
 };
@@ -386,7 +387,14 @@ export default function PlatformDashboard({
                                         <p className="text-muted-foreground">
                                             {domain.project} ({domain.project_slug})
                                         </p>
-                                        <div className="mt-1">{domainStatusBadge(domain.status, domain.verified_at)}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                                            {domainStatusBadge(domain.status, domain.verified_at)}
+                                            {domain.ssl_ready ? (
+                                                <Badge>SSL active</Badge>
+                                            ) : domain.ssl_status ? (
+                                                <Badge variant="outline">SSL {domain.ssl_status}</Badge>
+                                            ) : null}
+                                        </div>
                                         {domain.error_message && <p className="mt-1 text-destructive">{domain.error_message}</p>}
                                     </div>
                                     <div className="flex flex-wrap gap-2">

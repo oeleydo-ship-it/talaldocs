@@ -24,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $ssl_status
  * @property string|null $ownership_txt_name
  * @property string|null $ownership_txt_value
+ * @property string|null $ssl_txt_name
+ * @property string|null $ssl_txt_value
  */
 #[Fillable([
     'workspace_id',
@@ -39,6 +41,8 @@ use Illuminate\Support\Carbon;
     'ssl_status',
     'ownership_txt_name',
     'ownership_txt_value',
+    'ssl_txt_name',
+    'ssl_txt_value',
     'cloudflare_dns_record_id',
 ])]
 class CustomDomain extends Model
@@ -79,16 +83,25 @@ class CustomDomain extends Model
 
     public function cnameTarget(): string
     {
-        if (PlatformCloudflareConfig::isConfigured()) {
-            return PlatformCloudflareConfig::fallbackOrigin();
-        }
+        return PlatformCloudflareConfig::publicCnameTarget();
+    }
 
+    public function tenantCnameTarget(): string
+    {
         $project = $this->project;
-        $platform = (string) config('anytdocs.domain');
+        $platform = strtolower((string) config('anytdocs.domain'));
 
         return $project?->subdomain
             ? strtolower($project->subdomain.'.'.$platform)
             : $platform;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function acceptedCnameTargets(): array
+    {
+        return [strtolower($this->cnameTarget())];
     }
 
     public function usesCloudflare(): bool
@@ -98,10 +111,34 @@ class CustomDomain extends Model
 
     public function sslReady(): bool
     {
-        if ($this->usesCloudflare()) {
+        if (PlatformCloudflareConfig::usesCustomHostnames() || $this->usesCloudflare()) {
             return strtolower((string) $this->ssl_status) === 'active';
         }
 
         return $this->status === DomainStatus::Active;
+    }
+
+    /**
+     * @param  array{
+     *     id?: string|null,
+     *     ssl_status?: string|null,
+     *     ownership_txt_name?: string|null,
+     *     ownership_txt_value?: string|null,
+     *     ssl_txt_name?: string|null,
+     *     ssl_txt_value?: string|null
+     * }  $remote
+     */
+    public function applyCloudflareHostname(array $remote): void
+    {
+        $hostnameId = $remote['id'] ?? null;
+
+        $this->forceFill([
+            'cloudflare_hostname_id' => filled($hostnameId) ? (string) $hostnameId : $this->cloudflare_hostname_id,
+            'ssl_status' => $remote['ssl_status'] ?? $this->ssl_status,
+            'ownership_txt_name' => $remote['ownership_txt_name'] ?? $this->ownership_txt_name,
+            'ownership_txt_value' => $remote['ownership_txt_value'] ?? $this->ownership_txt_value,
+            'ssl_txt_name' => $remote['ssl_txt_name'] ?? $this->ssl_txt_name,
+            'ssl_txt_value' => $remote['ssl_txt_value'] ?? $this->ssl_txt_value,
+        ])->save();
     }
 }

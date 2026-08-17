@@ -80,6 +80,7 @@ type CloudflareSettings = {
     cloudflare_api_token_masked: string | null;
     configured: boolean;
     app_domain: string;
+    cname_target?: string | null;
 };
 
 type Props = {

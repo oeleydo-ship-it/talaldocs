@@ -143,6 +143,8 @@ class PlatformAdminController extends Controller
                     'project_slug' => $domain->project?->slug,
                     'verified_at' => $domain->verified_at?->toIso8601String(),
                     'error_message' => $domain->error_message,
+                    'ssl_status' => $domain->ssl_status,
+                    'ssl_ready' => $domain->sslReady(),
                     'last_checked_at' => $domain->last_checked_at?->toIso8601String(),
                 ]),
             'failedDomains' => CustomDomain::query()

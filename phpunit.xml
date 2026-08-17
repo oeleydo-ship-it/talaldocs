@@ -34,5 +34,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="CLOUDFLARE_FALLBACK_ORIGIN" value=""/>
+        <env name="ANYTDOCS_CNAME_TARGET" value=""/>
     </php>
 </phpunit>

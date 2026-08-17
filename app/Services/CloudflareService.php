@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Support\PlatformCloudflareConfig;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -30,14 +31,14 @@ class CloudflareService
 
         try {
             $response = $this->client()->get('/zones/'.PlatformCloudflareConfig::zoneId());
-            $zone = $response->json('result');
+            $zone = $this->resultFrom($response);
 
             return [
                 'ok' => true,
                 'message' => 'Connected to zone '.($zone['name'] ?? PlatformCloudflareConfig::zoneId()).'.',
                 'zone_name' => $zone['name'] ?? null,
             ];
-        } catch (RequestException|ConnectionException $exception) {
+        } catch (RequestException|ConnectionException|RuntimeException $exception) {
             return [
                 'ok' => false,
                 'message' => $this->messageFromException($exception),
@@ -46,60 +47,125 @@ class CloudflareService
     }
 
     /**
+     * Create or reuse the Cloudflare custom hostname, then return the latest SSL/ownership payload.
+     *
      * @return array{
      *     id: string,
      *     ssl_status: string|null,
+     *     status: string|null,
      *     ownership_txt_name: string|null,
-     *     ownership_txt_value: string|null
+     *     ownership_txt_value: string|null,
+     *     ssl_txt_name: string|null,
+     *     ssl_txt_value: string|null
+     * }
+     */
+    public function ensureCustomHostname(CustomDomain $domain): array
+    {
+        if (filled($domain->cloudflare_hostname_id)) {
+            return $this->fetchCustomHostname($domain);
+        }
+
+        $existing = $this->findCustomHostname($domain->hostname);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return $this->registerCustomHostname($domain);
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     ssl_status: string|null,
+     *     status: string|null,
+     *     ownership_txt_name: string|null,
+     *     ownership_txt_value: string|null,
+     *     ssl_txt_name: string|null,
+     *     ssl_txt_value: string|null
      * }
      */
     public function registerCustomHostname(CustomDomain $domain): array
     {
-        $response = $this->client()->post('/zones/'.PlatformCloudflareConfig::zoneId().'/custom_hostnames', [
-            'hostname' => $domain->hostname,
-            'ssl' => [
-                'method' => 'txt',
-                'type' => 'dv',
-                'wildcard' => false,
-            ],
-        ]);
+        try {
+            $response = $this->client()->post('/zones/'.PlatformCloudflareConfig::zoneId().'/custom_hostnames', [
+                'hostname' => $domain->hostname,
+                'ssl' => [
+                    'method' => 'http',
+                    'type' => 'dv',
+                    'wildcard' => false,
+                ],
+            ]);
 
-        $result = $response->json('result') ?? [];
+            return $this->mapHostnameResult($this->resultFrom($response), $domain);
+        } catch (RequestException $exception) {
+            if (in_array($exception->response?->status(), [409, 400], true)) {
+                $existing = $this->findCustomHostname($domain->hostname);
 
-        return [
-            'id' => (string) ($result['id'] ?? ''),
-            'ssl_status' => $result['ssl']['status'] ?? null,
-            'ownership_txt_name' => $result['ownership_verification']['name'] ?? null,
-            'ownership_txt_value' => $result['ownership_verification']['value'] ?? null,
-        ];
+                if ($existing !== null) {
+                    return $existing;
+                }
+            }
+
+            throw $exception;
+        }
     }
 
     /**
-     * @return array{ssl_status: string|null, status: string|null, ownership_txt_name: string|null, ownership_txt_value: string|null}
+     * @return array{
+     *     id: string,
+     *     ssl_status: string|null,
+     *     status: string|null,
+     *     ownership_txt_name: string|null,
+     *     ownership_txt_value: string|null,
+     *     ssl_txt_name: string|null,
+     *     ssl_txt_value: string|null
+     * }
      */
     public function fetchCustomHostname(CustomDomain $domain): array
     {
         if (! filled($domain->cloudflare_hostname_id)) {
-            return [
-                'ssl_status' => $domain->ssl_status,
-                'status' => null,
-                'ownership_txt_name' => $domain->ownership_txt_name,
-                'ownership_txt_value' => $domain->ownership_txt_value,
-            ];
+            $existing = $this->findCustomHostname($domain->hostname);
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            return $this->mapHostnameResult([], $domain);
         }
 
         $response = $this->client()->get(
             '/zones/'.PlatformCloudflareConfig::zoneId().'/custom_hostnames/'.$domain->cloudflare_hostname_id,
         );
 
-        $result = $response->json('result') ?? [];
+        return $this->mapHostnameResult($this->resultFrom($response), $domain);
+    }
 
-        return [
-            'ssl_status' => $result['ssl']['status'] ?? null,
-            'status' => $result['status'] ?? null,
-            'ownership_txt_name' => $result['ownership_verification']['name'] ?? $domain->ownership_txt_name,
-            'ownership_txt_value' => $result['ownership_verification']['value'] ?? $domain->ownership_txt_value,
-        ];
+    /**
+     * @return array{
+     *     id: string,
+     *     ssl_status: string|null,
+     *     status: string|null,
+     *     ownership_txt_name: string|null,
+     *     ownership_txt_value: string|null,
+     *     ssl_txt_name: string|null,
+     *     ssl_txt_value: string|null
+     * }|null
+     */
+    public function findCustomHostname(string $hostname): ?array
+    {
+        $response = $this->client()->get('/zones/'.PlatformCloudflareConfig::zoneId().'/custom_hostnames', [
+            'hostname' => $hostname,
+        ]);
+
+        $result = $this->resultFrom($response);
+        $first = is_array($result[0] ?? null) ? $result[0] : (is_array($result) && isset($result['id']) ? $result : null);
+
+        if (! is_array($first) || ! filled($first['id'] ?? null)) {
+            return null;
+        }
+
+        return $this->mapHostnameResult($first);
     }
 
     public function deleteCustomHostname(CustomDomain $domain): void
@@ -140,7 +206,9 @@ class CloudflareService
             'comment' => config('app.name', 'Docs').' tenant '.$project->id,
         ]);
 
-        return (string) ($response->json('result.id') ?? '');
+        $result = $this->resultFrom($response);
+
+        return (string) ($result['id'] ?? '');
     }
 
     public function deleteDnsRecord(?string $recordId): void
@@ -160,6 +228,78 @@ class CloudflareService
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array{
+     *     id: string,
+     *     ssl_status: string|null,
+     *     status: string|null,
+     *     ownership_txt_name: string|null,
+     *     ownership_txt_value: string|null,
+     *     ssl_txt_name: string|null,
+     *     ssl_txt_value: string|null
+     * }
+     */
+    private function mapHostnameResult(array $result, ?CustomDomain $domain = null): array
+    {
+        $ssl = is_array($result['ssl'] ?? null) ? $result['ssl'] : [];
+        $ownership = is_array($result['ownership_verification'] ?? null) ? $result['ownership_verification'] : [];
+        [$sslTxtName, $sslTxtValue] = $this->sslTxtFrom($ssl);
+
+        return [
+            'id' => (string) ($result['id'] ?? $domain?->cloudflare_hostname_id ?? ''),
+            'ssl_status' => isset($ssl['status']) ? (string) $ssl['status'] : ($domain?->ssl_status),
+            'status' => isset($result['status']) ? (string) $result['status'] : null,
+            'ownership_txt_name' => $ownership['name'] ?? $domain?->ownership_txt_name,
+            'ownership_txt_value' => $ownership['value'] ?? $domain?->ownership_txt_value,
+            'ssl_txt_name' => $sslTxtName ?? $domain?->ssl_txt_name,
+            'ssl_txt_value' => $sslTxtValue ?? $domain?->ssl_txt_value,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $ssl
+     * @return array{0: string|null, 1: string|null}
+     */
+    private function sslTxtFrom(array $ssl): array
+    {
+        $name = isset($ssl['txt_name']) ? (string) $ssl['txt_name'] : null;
+        $value = isset($ssl['txt_value']) ? (string) $ssl['txt_value'] : null;
+
+        $records = $ssl['validation_records'] ?? [];
+
+        if (is_array($records)) {
+            foreach ($records as $record) {
+                if (! is_array($record)) {
+                    continue;
+                }
+
+                $recordName = $record['txt_name'] ?? null;
+                $recordValue = $record['txt_value'] ?? null;
+
+                if (filled($recordName) && filled($recordValue)) {
+                    return [(string) $recordName, (string) $recordValue];
+                }
+            }
+        }
+
+        return [$name, $value];
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    private function resultFrom(Response $response): array
+    {
+        if ($response->json('success') === false) {
+            throw new RuntimeException($this->messageFromResponse($response));
+        }
+
+        $result = $response->json('result');
+
+        return is_array($result) ? $result : [];
+    }
+
     private function client(): \Illuminate\Http\Client\PendingRequest
     {
         $token = PlatformCloudflareConfig::apiToken();
@@ -171,19 +311,27 @@ class CloudflareService
         return Http::baseUrl(self::API_BASE)
             ->acceptJson()
             ->withToken($token)
-            ->timeout(20);
+            ->timeout(20)
+            ->throw();
     }
 
-    private function messageFromException(RequestException|ConnectionException $exception): string
+    private function messageFromException(RequestException|ConnectionException|RuntimeException $exception): string
     {
         if ($exception instanceof RequestException) {
-            $errors = $exception->response?->json('errors');
-
-            if (is_array($errors) && isset($errors[0]['message'])) {
-                return (string) $errors[0]['message'];
-            }
+            return $this->messageFromResponse($exception->response) ?: $exception->getMessage();
         }
 
         return $exception->getMessage();
+    }
+
+    private function messageFromResponse(?Response $response): string
+    {
+        $errors = $response?->json('errors');
+
+        if (is_array($errors) && isset($errors[0]['message'])) {
+            return (string) $errors[0]['message'];
+        }
+
+        return (string) ($response?->json('errors.0.message') ?: '');
     }
 }

@@ -8,6 +8,7 @@ use App\Policies\ProjectPolicy;
 use App\Policies\WorkspacePolicy;
 use App\Support\DisabledInertiaSsrGateway;
 use App\Support\PlatformAiConfig;
+use App\Support\PlatformCloudflareConfig;
 use App\Support\PlatformConfig;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -49,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
         $this->configurePlatformAi();
         $this->configurePlatformSettings();
+        $this->configurePlatformCloudflare();
         $this->configureViews();
     }
 
@@ -83,6 +85,17 @@ class AppServiceProvider extends ServiceProvider
     {
         try {
             PlatformAiConfig::apply();
+        } catch (Throwable $e) {
+            if (! PlatformConfig::isDatabaseUnavailable($e)) {
+                throw $e;
+            }
+        }
+    }
+
+    protected function configurePlatformCloudflare(): void
+    {
+        try {
+            PlatformCloudflareConfig::apply();
         } catch (Throwable $e) {
             if (! PlatformConfig::isDatabaseUnavailable($e)) {
                 throw $e;

@@ -35,22 +35,25 @@ class VerifyCustomDomainJob implements ShouldQueue
         $cloudflareEnabled = PlatformCloudflareConfig::isConfigured();
         $txtOk = $this->verifyTxt($domain);
         $cnameOk = $this->verifyCname($domain);
-        $sslOk = true;
+        $sslOk = ! $cloudflareEnabled;
+        $ownershipOk = true;
         $errors = [];
 
-        if ($cloudflareEnabled && filled($domain->cloudflare_hostname_id)) {
+        if ($cloudflareEnabled) {
             try {
-                $remote = $cloudflare->fetchCustomHostname($domain);
-                $domain->forceFill([
-                    'ssl_status' => $remote['ssl_status'],
-                    'ownership_txt_name' => $remote['ownership_txt_name'] ?? $domain->ownership_txt_name,
-                    'ownership_txt_value' => $remote['ownership_txt_value'] ?? $domain->ownership_txt_value,
-                ])->save();
+                $remote = $cloudflare->ensureCustomHostname($domain);
+                $domain->applyCloudflareHostname($remote);
 
                 $sslOk = strtolower((string) ($remote['ssl_status'] ?? '')) === 'active';
 
                 if (filled($domain->ownership_txt_name) && filled($domain->ownership_txt_value)) {
-                    $txtOk = $this->verifyOwnershipTxt($domain) || $txtOk;
+                    $ownershipOk = $this->verifyOwnershipTxt($domain);
+                    $txtOk = $ownershipOk || $txtOk;
+                }
+
+                if (! filled($domain->cloudflare_hostname_id)) {
+                    $sslOk = false;
+                    $errors[] = 'Cloudflare custom hostname is not registered. HTTPS cannot be issued until SSL for SaaS has this hostname.';
                 }
             } catch (\Throwable $exception) {
                 $errors[] = 'Cloudflare: '.$exception->getMessage();
@@ -60,6 +63,7 @@ class VerifyCustomDomainJob implements ShouldQueue
             if (app()->environment('testing') && $sslOk) {
                 $txtOk = true;
                 $cnameOk = true;
+                $ownershipOk = true;
             }
         }
 
@@ -69,27 +73,37 @@ class VerifyCustomDomainJob implements ShouldQueue
             $sslOk = true;
         }
 
-        $verified = $cnameOk && $txtOk;
-
-        if ($cloudflareEnabled && filled($domain->cloudflare_hostname_id)) {
-            $verified = $verified && $sslOk;
-        }
+        $dnsOk = $cnameOk && $txtOk;
+        $verified = $dnsOk && $sslOk;
 
         if (! $txtOk) {
             $errors[] = 'TXT record '.$domain->txtName().' does not match '.$domain->txtValue();
         }
 
-        if (! $cnameOk) {
-            $errors[] = 'CNAME '.$domain->hostname.' must point to '.$domain->cnameTarget();
+        if ($cloudflareEnabled && ! $ownershipOk && ! $sslOk && filled($domain->ownership_txt_name)) {
+            $errors[] = 'Cloudflare ownership TXT '.$domain->ownership_txt_name.' is missing. Add it so SSL for SaaS can issue a certificate.';
         }
 
-        if ($cloudflareEnabled && filled($domain->cloudflare_hostname_id) && ! $sslOk) {
-            $errors[] = 'SSL certificate is not active yet. Cloudflare status: '.($domain->ssl_status ?? 'pending').'.';
+        if (! $cnameOk) {
+            $errors[] = 'CNAME '.$domain->hostname.' must point to '.$domain->cnameTarget().' (SSL for SaaS fallback). Do not CNAME to the project subdomain.';
+        }
+
+        if ($cloudflareEnabled && ! $sslOk) {
+            $sslStatus = $domain->ssl_status ?? 'pending';
+            $errors[] = 'SSL certificate is not active yet. Cloudflare SSL status: '.$sslStatus.'. HTTPS will fail until the certificate is issued.';
+        }
+
+        $status = DomainStatus::Failed;
+
+        if ($verified) {
+            $status = DomainStatus::Active;
+        } elseif ($dnsOk && $cloudflareEnabled && filled($domain->cloudflare_hostname_id) && ! $sslOk) {
+            $status = DomainStatus::Verifying;
         }
 
         $domain->forceFill([
             'last_checked_at' => now(),
-            'status' => $verified ? DomainStatus::Active : DomainStatus::Failed,
+            'status' => $status,
             'verified_at' => $verified ? now() : null,
             'error_message' => $verified ? null : implode(' ', array_unique($errors)),
         ])->save();
@@ -135,19 +149,52 @@ class VerifyCustomDomainJob implements ShouldQueue
 
     private function verifyCname(CustomDomain $domain): bool
     {
-        $target = strtolower($domain->cnameTarget());
         $records = @dns_get_record($domain->hostname, DNS_CNAME) ?: [];
+        $cnames = [];
 
         foreach ($records as $record) {
-            $cname = strtolower(rtrim((string) ($record['target'] ?? ''), '.'));
+            $cnames[] = strtolower(rtrim((string) ($record['target'] ?? ''), '.'));
+        }
 
-            if ($cname === $target || str_ends_with($cname, '.'.$target)) {
+        foreach ($domain->acceptedCnameTargets() as $target) {
+            foreach ($cnames as $cname) {
+                if ($cname === $target || str_ends_with($cname, '.'.$target)) {
+                    return true;
+                }
+            }
+        }
+
+        $hostIps = $this->aRecords($domain->hostname);
+
+        if ($hostIps === []) {
+            return false;
+        }
+
+        foreach ($domain->acceptedCnameTargets() as $target) {
+            if (array_intersect($hostIps, $this->aRecords($target)) !== []) {
                 return true;
             }
         }
 
-        $aRecords = @dns_get_record($target, DNS_A) ?: [];
+        return false;
+    }
 
-        return $aRecords !== [] && @dns_get_record($domain->hostname, DNS_A) !== false;
+    /**
+     * @return list<string>
+     */
+    private function aRecords(string $hostname): array
+    {
+        $records = @dns_get_record($hostname, DNS_A) ?: [];
+        $ips = [];
+
+        foreach ($records as $record) {
+            $ip = $record['ip'] ?? null;
+
+            if (is_string($ip) && $ip !== '') {
+                $ips[] = $ip;
+            }
+        }
+
+        return $ips;
     }
 }

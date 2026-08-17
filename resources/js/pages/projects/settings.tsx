@@ -21,7 +21,10 @@ type Domain = {
     ssl_status: string | null;
     ownership_txt_name: string | null;
     ownership_txt_value: string | null;
+    ssl_txt_name: string | null;
+    ssl_txt_value: string | null;
     cname_target: string;
+    tenant_cname_target: string;
     cloudflare_managed: boolean;
     ssl_ready: boolean;
 };
@@ -54,6 +57,7 @@ type Props = {
     languages: { id: number; language_id: number; code: string; name: string; is_default: boolean }[];
     availableLanguages: { id: number; code: string; name: string }[];
     features: Record<string, boolean>;
+    cname_target: string | null;
     aiIndex: {
         pages: number;
         chunks: number;
@@ -74,6 +78,33 @@ function domainStatusLabel(status: string): string {
         default:
             return status;
     }
+}
+
+function sslStatusLabel(status: string): string {
+    return `SSL ${status.replaceAll('_', ' ')}`;
+}
+
+function dnsCnameTarget(domain: Domain, platformCnameTarget: string | null): string {
+    const hostname = domain.hostname.toLowerCase();
+    const tenant = (domain.tenant_cname_target ?? '').trim().toLowerCase();
+    const candidates = [platformCnameTarget, domain.cname_target];
+
+    for (const candidate of candidates) {
+        const value = (candidate ?? '').trim();
+        const normalized = value.toLowerCase();
+        if (value !== '' && normalized !== hostname && normalized !== tenant) {
+            return value;
+        }
+    }
+
+    if (tenant.includes('.')) {
+        const apex = tenant.split('.').slice(1).join('.');
+        if (apex !== '') {
+            return `fallback.${apex}`;
+        }
+    }
+
+    return 'fallback.talaldocs.com';
 }
 const SETTINGS_TABS = ['general', 'visibility', 'branding', 'template', 'navigation', 'domains', 'versions', 'languages'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
@@ -150,6 +181,7 @@ export default function ProjectSettings({
     languages,
     availableLanguages,
     features,
+    cname_target: platformCnameTarget,
     aiIndex,
 }: Props) {
     const [activeTab, setActiveTab] = useState<SettingsTab>(() => tabFromHash(window.location.hash));
@@ -800,11 +832,13 @@ export default function ProjectSettings({
                                     <Button type="submit">Add domain</Button>
                                 </form>
                                 {domains.map((domain) => {
-                                    const cnameTarget = domain.cname_target;
-                                    const txtName = `_anytdocs-challenge.${domain.hostname}`;
+                                    const cnameTarget = dnsCnameTarget(domain, platformCnameTarget);
+                                    const txtHost = `_anytdocs-challenge.${domain.hostname}`;
                                     const txtValue = `anytdocs-verify=${domain.verification_token}`;
                                     const ownershipName = domain.ownership_txt_name;
                                     const ownershipValue = domain.ownership_txt_value;
+                                    const sslTxtName = domain.ssl_txt_name;
+                                    const sslTxtValue = domain.ssl_txt_value;
 
                                     return (
                                         <div key={domain.id} className="space-y-3 rounded-lg border p-3 text-sm">
@@ -821,8 +855,10 @@ export default function ProjectSettings({
                                                     {domain.ssl_ready && (
                                                         <Badge>SSL active</Badge>
                                                     )}
-                                                    {domain.cloudflare_managed && domain.ssl_status && !domain.ssl_ready && (
-                                                        <Badge variant="outline">SSL {domain.ssl_status}</Badge>
+                                                    {domain.cloudflare_managed && !domain.ssl_ready && (
+                                                        <Badge variant="outline">
+                                                            {domain.ssl_status ? sslStatusLabel(domain.ssl_status) : 'SSL not issued'}
+                                                        </Badge>
                                                     )}
                                                 </div>
                                             </div>
@@ -837,8 +873,14 @@ export default function ProjectSettings({
                                                         <CopyButton value={ownershipValue} label="Copy TXT" />
                                                     </div>
                                                 )}
+                                                {sslTxtName && sslTxtValue && (
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <span>TXT {sslTxtName} = {sslTxtValue}</span>
+                                                        <CopyButton value={sslTxtValue} label="Copy TXT" />
+                                                    </div>
+                                                )}
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <span>TXT {txtName} = {txtValue}</span>
+                                                    <span>TXT {txtHost} = {txtValue}</span>
                                                     <CopyButton value={txtValue} label="Copy TXT" />
                                                 </div>
                                             </div>

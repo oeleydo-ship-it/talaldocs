@@ -18,6 +18,7 @@ use App\Services\DocsIndexService;
 use App\Rules\HeaderMenuUrl;
 use App\Support\Audit;
 use App\Support\PlanGate;
+use App\Support\PlatformCloudflareConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -64,7 +65,12 @@ class ProjectSettingsController extends Controller
                 'og_image_url' => $model->brandingAssetUrl($model->og_image_path),
                 'public_url' => $model->publicUrl(),
             ],
-            'domains' => $model->customDomains()->get()->map(fn (CustomDomain $domain): array => $this->domainPayload($domain)),
+            'cname_target' => PlatformCloudflareConfig::publicCnameTarget(),
+            'domains' => $model->customDomains()->with('project')->get()->map(function (CustomDomain $domain) use ($model): array {
+                $domain->setRelation('project', $model);
+
+                return $this->domainPayload($domain);
+            }),
             'versions' => $model->versions()->orderByDesc('is_default')->get(),
             'languages' => ProjectLanguage::query()->with('language')->where('project_id', $model->id)->get()
                 ->map(fn (ProjectLanguage $row): array => [
@@ -222,13 +228,8 @@ class ProjectSettingsController extends Controller
 
         if ($this->cloudflare->isConfigured()) {
             try {
-                $remote = $this->cloudflare->registerCustomHostname($domain);
-                $domain->forceFill([
-                    'cloudflare_hostname_id' => $remote['id'] ?: null,
-                    'ssl_status' => $remote['ssl_status'],
-                    'ownership_txt_name' => $remote['ownership_txt_name'],
-                    'ownership_txt_value' => $remote['ownership_txt_value'],
-                ])->save();
+                $remote = $this->cloudflare->ensureCustomHostname($domain);
+                $domain->applyCloudflareHostname($remote);
             } catch (\Throwable $exception) {
                 $domain->forceFill([
                     'status' => DomainStatus::Failed,
@@ -402,8 +403,11 @@ class ProjectSettingsController extends Controller
             'ssl_status' => $domain->ssl_status,
             'ownership_txt_name' => $domain->ownership_txt_name,
             'ownership_txt_value' => $domain->ownership_txt_value,
-            'cname_target' => $domain->cnameTarget(),
-            'cloudflare_managed' => $domain->usesCloudflare(),
+            'ssl_txt_name' => $domain->ssl_txt_name,
+            'ssl_txt_value' => $domain->ssl_txt_value,
+            'cname_target' => PlatformCloudflareConfig::publicCnameTarget(),
+            'tenant_cname_target' => $domain->tenantCnameTarget(),
+            'cloudflare_managed' => PlatformCloudflareConfig::usesCustomHostnames() || $domain->usesCloudflare(),
             'ssl_ready' => $domain->sslReady(),
         ];
     }

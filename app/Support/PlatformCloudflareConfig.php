@@ -6,62 +6,134 @@ use App\Models\PlatformSetting;
 
 class PlatformCloudflareConfig
 {
+    public static function apply(): void
+    {
+        $fallback = self::configuredFallbackOrigin();
+
+        if ($fallback !== null) {
+            config([
+                'anytdocs.cname_target' => $fallback,
+                'anytdocs.cloudflare.fallback_origin' => $fallback,
+            ]);
+        }
+    }
+
     public static function isConfigured(): bool
     {
-        if (! PlatformConfig::tableAvailable()) {
-            return false;
+        return filled(self::apiToken()) && filled(self::zoneId()) && self::enabled();
+    }
+
+    public static function enabled(): bool
+    {
+        if (PlatformConfig::tableAvailable()) {
+            $settings = PlatformSetting::instance();
+
+            if ($settings->cloudflare_enabled) {
+                return true;
+            }
         }
 
-        $settings = PlatformSetting::instance();
-
-        return $settings->cloudflare_enabled
-            && filled($settings->cloudflare_api_token)
-            && filled($settings->cloudflare_zone_id);
+        return (bool) config('anytdocs.cloudflare.enabled');
     }
 
     public static function apiToken(): ?string
     {
-        if (! PlatformConfig::tableAvailable()) {
-            return null;
+        if (PlatformConfig::tableAvailable()) {
+            $token = PlatformSetting::instance()->cloudflare_api_token;
+
+            if (filled($token)) {
+                return $token;
+            }
         }
 
-        return PlatformSetting::instance()->cloudflare_api_token;
+        $fromConfig = config('anytdocs.cloudflare.api_token');
+
+        return filled($fromConfig) ? (string) $fromConfig : null;
     }
 
     public static function zoneId(): ?string
     {
-        if (! PlatformConfig::tableAvailable()) {
-            return null;
+        if (PlatformConfig::tableAvailable()) {
+            $zoneId = PlatformSetting::instance()->cloudflare_zone_id;
+
+            if (filled($zoneId)) {
+                return $zoneId;
+            }
         }
 
-        return PlatformSetting::instance()->cloudflare_zone_id;
+        $fromConfig = config('anytdocs.cloudflare.zone_id');
+
+        return filled($fromConfig) ? (string) $fromConfig : null;
     }
 
     public static function accountId(): ?string
     {
-        if (! PlatformConfig::tableAvailable()) {
-            return null;
+        if (PlatformConfig::tableAvailable()) {
+            $accountId = PlatformSetting::instance()->cloudflare_account_id;
+
+            if (filled($accountId)) {
+                return $accountId;
+            }
         }
 
-        return PlatformSetting::instance()->cloudflare_account_id;
+        $fromConfig = config('anytdocs.cloudflare.account_id');
+
+        return filled($fromConfig) ? (string) $fromConfig : null;
+    }
+
+    /**
+     * Hostname customers should CNAME custom domains to (SSL for SaaS fallback origin).
+     *
+     * Computed at request time: platform setting, then env, then fallback.{app_domain}
+     * for real domains. Never the project tenant hostname ({subdomain}.{app_domain}).
+     */
+    public static function publicCnameTarget(): string
+    {
+        return self::configuredFallbackOrigin() ?? self::derivedFallbackOrigin();
+    }
+
+    /**
+     * Stored or env SSL for SaaS fallback origin, even if the API token is not configured locally.
+     */
+    public static function storedFallbackOrigin(): ?string
+    {
+        return self::configuredFallbackOrigin();
+    }
+
+    public static function configuredFallbackOrigin(): ?string
+    {
+        if (PlatformConfig::tableAvailable()) {
+            $stored = self::normalizeHost(PlatformSetting::instance()->cloudflare_fallback_origin ?? null);
+
+            if ($stored !== null) {
+                return $stored;
+            }
+        }
+
+        return self::normalizeHost(
+            config('anytdocs.cname_target') ?: config('anytdocs.cloudflare.fallback_origin')
+        );
+    }
+
+    /**
+     * True when custom hostnames should CNAME to the fallback origin (not the tenant subdomain).
+     */
+    public static function usesCustomHostnames(): bool
+    {
+        if (self::configuredFallbackOrigin() !== null) {
+            return true;
+        }
+
+        if (self::enabled() || self::isConfigured()) {
+            return true;
+        }
+
+        return filled(config('anytdocs.cloudflare.api_token')) && filled(config('anytdocs.cloudflare.zone_id'));
     }
 
     public static function fallbackOrigin(): string
     {
-        $platform = strtolower((string) config('anytdocs.domain'));
-
-        if (! PlatformConfig::tableAvailable()) {
-            return $platform;
-        }
-
-        $settings = PlatformSetting::instance();
-        $fallback = trim((string) ($settings->cloudflare_fallback_origin ?? ''));
-
-        if (self::isConfigured() && filled($fallback)) {
-            return strtolower(rtrim($fallback, '.'));
-        }
-
-        return $platform;
+        return self::publicCnameTarget();
     }
 
     public static function autoProvisionSubdomains(): bool
@@ -93,7 +165,8 @@ class PlatformCloudflareConfig
             'cloudflare_api_token_set' => filled($settings->cloudflare_api_token),
             'cloudflare_api_token_masked' => PlatformSetting::maskedSecret($settings->cloudflare_api_token),
             'configured' => self::isConfigured(),
-            'app_domain' => (string) config('anytdocs.domain'),
+            'app_domain' => self::appDomain(),
+            'cname_target' => self::publicCnameTarget(),
         ];
     }
 
@@ -111,7 +184,43 @@ class PlatformCloudflareConfig
             'cloudflare_api_token_set' => false,
             'cloudflare_api_token_masked' => null,
             'configured' => false,
-            'app_domain' => (string) config('anytdocs.domain'),
+            'app_domain' => self::appDomain(),
+            'cname_target' => self::publicCnameTarget(),
         ];
+    }
+
+    private static function derivedFallbackOrigin(): string
+    {
+        $platform = self::appDomain();
+
+        if ($platform === '' || $platform === 'localhost') {
+            return 'fallback.talaldocs.com';
+        }
+
+        if (str_starts_with($platform, 'fallback.')) {
+            return $platform;
+        }
+
+        if (str_contains($platform, '.')) {
+            return 'fallback.'.$platform;
+        }
+
+        return 'fallback.talaldocs.com';
+    }
+
+    private static function appDomain(): string
+    {
+        return self::normalizeHost((string) config('anytdocs.domain')) ?? 'localhost';
+    }
+
+    private static function normalizeHost(mixed $host): ?string
+    {
+        if (! is_string($host) && ! is_numeric($host)) {
+            return null;
+        }
+
+        $normalized = strtolower(rtrim(trim((string) $host), '.'));
+
+        return $normalized !== '' ? $normalized : null;
     }
 }
