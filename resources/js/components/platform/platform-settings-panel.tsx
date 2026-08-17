@@ -1,12 +1,14 @@
 import { router } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { PlatformPublicContentForm } from '@/components/platform/platform-public-content-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import type { PublicContentSettings } from '@/types/platform';
 
 type PlatformSettings = {
     app_domain: string;
@@ -24,6 +26,7 @@ type GeneralSettings = {
     tagline: string | null;
     logo_url: string | null;
     favicon_url: string | null;
+    hide_app_name_next_to_logo: boolean;
 };
 
 type SmtpSettings = {
@@ -91,6 +94,7 @@ type Props = {
     paymentSettings: PaymentSettings;
     aiSettings: AiSettings;
     cloudflareSettings: CloudflareSettings;
+    publicContent: PublicContentSettings;
 };
 
 function AssetPreview({ label, url }: { label: string; url: string | null }) {
@@ -426,9 +430,13 @@ export function PlatformSettingsPanel({
     paymentSettings,
     aiSettings,
     cloudflareSettings,
+    publicContent,
 }: Props) {
     const [generalLogo, setGeneralLogo] = useState<File | null>(null);
     const [generalFavicon, setGeneralFavicon] = useState<File | null>(null);
+    const [hideAppNameNextToLogo, setHideAppNameNextToLogo] = useState(
+        generalSettings.hide_app_name_next_to_logo,
+    );
     const [smtpPassword, setSmtpPassword] = useState('');
     const [stripeSecret, setStripeSecret] = useState('');
     const [stripeWebhookSecret, setStripeWebhookSecret] = useState('');
@@ -451,6 +459,8 @@ export function PlatformSettingsPanel({
         if (generalFavicon) {
             data.set('favicon', generalFavicon);
         }
+
+        data.set('hide_app_name_next_to_logo', hideAppNameNextToLogo ? '1' : '0');
 
         router.post('/platform/settings/general', data, { forceFormData: true, preserveScroll: true });
     };
@@ -537,6 +547,7 @@ export function PlatformSettingsPanel({
         <Tabs value={section} onValueChange={changeSection} className="gap-6">
             <TabsList className="h-auto flex-wrap justify-start">
                 <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="public">Public content</TabsTrigger>
                 <TabsTrigger value="platform">Platform</TabsTrigger>
                 <TabsTrigger value="dns">DNS</TabsTrigger>
                 <TabsTrigger value="ai">AI</TabsTrigger>
@@ -603,6 +614,30 @@ export function PlatformSettingsPanel({
                                 />
                                 <AssetPreview label="logo" url={generalSettings.logo_url} />
                             </div>
+                            <label
+                                className={cn(
+                                    'flex items-start gap-2 text-sm',
+                                    !generalSettings.logo_url && !generalLogo && 'opacity-60',
+                                )}
+                            >
+                                <input
+                                    id="hide_app_name_next_to_logo"
+                                    type="checkbox"
+                                    name="hide_app_name_next_to_logo"
+                                    value="1"
+                                    className="mt-0.5"
+                                    checked={hideAppNameNextToLogo}
+                                    disabled={!generalSettings.logo_url && !generalLogo}
+                                    onChange={(event) => setHideAppNameNextToLogo(event.target.checked)}
+                                />
+                                <span>
+                                    Hide app name next to logo
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        After a custom logo is uploaded, show only the image in marketing and auth
+                                        headers. The app name stays in titles and emails.
+                                    </span>
+                                </span>
+                            </label>
                             <div className="grid gap-2">
                                 <Label htmlFor="favicon">Favicon (.ico, .png, .svg)</Label>
                                 <Input
@@ -617,6 +652,10 @@ export function PlatformSettingsPanel({
                         </form>
                     </CardContent>
                 </Card>
+            </TabsContent>
+
+            <TabsContent value="public">
+                <PlatformPublicContentForm settings={publicContent} />
             </TabsContent>
 
             <TabsContent value="platform">

@@ -56,6 +56,18 @@ const featureIcons: Record<string, LucideIcon> = {
     whitelabel: Palette,
 };
 
+type FeaturesCopy = {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+};
+
+type Props = {
+    publicContent?: {
+        features: FeaturesCopy;
+    };
+};
+
 const templates = [
     {
         icon: BookOpen,
@@ -95,24 +107,27 @@ function FeatureGrid({
     );
 }
 
-export default function MarketingFeatures() {
+export default function MarketingFeatures({ publicContent }: Props) {
     const appName = useAppName();
+    const copy = publicContent?.features;
 
     return (
         <>
             <MarketingHead
-                title="Features"
-                description={`Authoring, publishing, AI, templates, domains, analytics, and team workflows — everything in ${appName}.`}
+                title={copy?.eyebrow || 'Features'}
+                description={copy?.intro || `Authoring, publishing, AI, templates, domains, analytics, and team workflows — everything in ${appName}.`}
                 path="/features"
             />
 
             <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
                 <div className="max-w-2xl">
-                    <p className="text-sm font-medium text-primary">Features</p>
-                    <h1 className="mt-2 text-4xl font-semibold tracking-tight">Everything you need to ship docs</h1>
+                    <p className="text-sm font-medium text-primary">{copy?.eyebrow || 'Features'}</p>
+                    <h1 className="mt-2 text-4xl font-semibold tracking-tight">
+                        {copy?.heading || 'Everything you need to ship docs'}
+                    </h1>
                     <p className="mt-4 text-lg text-muted-foreground">
-                        From first draft to custom domain — {appName} covers authoring, beautiful public sites, AI
-                        assistance, announcements, analytics, and team collaboration.
+                        {copy?.intro ||
+                            `From first draft to custom domain — ${appName} covers authoring, beautiful public sites, AI assistance, announcements, analytics, and team collaboration.`}
                     </p>
                 </div>
             </section>

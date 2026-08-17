@@ -11,9 +11,11 @@ use Illuminate\Support\Facades\Storage;
  * @property int $id
  * @property string $app_name
  * @property string|null $logo_path
+ * @property bool $hide_app_name_next_to_logo
  * @property string|null $favicon_path
  * @property string|null $support_email
  * @property string|null $tagline
+ * @property array<string, mixed>|null $public_content
  * @property string|null $app_domain
  * @property bool $ai_enabled
  * @property string $ai_provider
@@ -53,9 +55,11 @@ class PlatformSetting extends Model
     protected $fillable = [
         'app_name',
         'logo_path',
+        'hide_app_name_next_to_logo',
         'favicon_path',
         'support_email',
         'tagline',
+        'public_content',
         'app_domain',
         'ai_enabled',
         'ai_provider',
@@ -90,6 +94,7 @@ class PlatformSetting extends Model
      */
     protected $attributes = [
         'app_name' => 'Docs',
+        'hide_app_name_next_to_logo' => false,
         'ai_enabled' => true,
         'ai_provider' => 'openai',
         'ai_model' => 'gpt-4o-mini',
@@ -108,7 +113,9 @@ class PlatformSetting extends Model
     protected function casts(): array
     {
         return [
+            'public_content' => 'array',
             'ai_enabled' => 'boolean',
+            'hide_app_name_next_to_logo' => 'boolean',
             'stripe_enabled' => 'boolean',
             'billing_enforced' => 'boolean',
             'trial_days' => 'integer',

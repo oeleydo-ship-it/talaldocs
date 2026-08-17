@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { StatCard } from '@/components/stat-card';
+import type { PublicContentSettings } from '@/types/platform';
 
 type Stats = {
     users: number;
@@ -62,6 +63,7 @@ type Props = {
         tagline: string | null;
         logo_url: string | null;
         favicon_url: string | null;
+        hide_app_name_next_to_logo: boolean;
     };
     smtpSettings: {
         mail_mailer: string;
@@ -100,6 +102,7 @@ type Props = {
         app_domain: string;
         cname_target: string | null;
     };
+    publicContent: PublicContentSettings;
     recentActivity: { id: number; action: string; admin: string | null; metadata: Record<string, unknown> | null; created_at: string | null }[];
     workspaces: { id: number; name: string; slug: string; plan: string | null; plan_id: number | null; projects_count: number; suspended_at: string | null; stripe_id: boolean; created_at: string | null }[];
     users: { id: number; name: string; email: string; is_platform_admin: boolean; suspended_at: string | null; email_verified_at: string | null; created_at: string | null; workspaces_count: number }[];
@@ -153,6 +156,7 @@ export default function PlatformDashboard({
     paymentSettings,
     aiSettings,
     cloudflareSettings,
+    publicContent,
     recentActivity,
     workspaces,
     users,
@@ -487,6 +491,7 @@ export default function PlatformDashboard({
                     paymentSettings={paymentSettings}
                     aiSettings={aiSettings}
                     cloudflareSettings={cloudflareSettings}
+                    publicContent={publicContent}
                 />
             )}
         </>

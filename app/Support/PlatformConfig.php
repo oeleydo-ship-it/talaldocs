@@ -122,6 +122,7 @@ class PlatformConfig
                 'tagline' => null,
                 'logo_url' => null,
                 'favicon_url' => null,
+                'hide_app_name_next_to_logo' => false,
             ];
         }
 
@@ -136,6 +137,7 @@ class PlatformConfig
             'tagline' => $settings->tagline,
             'logo_url' => $settings->assetUrl($settings->logo_path),
             'favicon_url' => $settings->assetUrl($settings->favicon_path),
+            'hide_app_name_next_to_logo' => (bool) $settings->hide_app_name_next_to_logo,
         ];
     }
 
@@ -216,7 +218,7 @@ class PlatformConfig
     }
 
     /**
-     * @return array<string, string|null>
+     * @return array<string, mixed>
      */
     public static function brandingForFrontend(): array
     {
@@ -226,6 +228,7 @@ class PlatformConfig
                 'logo_url' => null,
                 'favicon_url' => null,
                 'tagline' => null,
+                'hide_app_name_next_to_logo' => false,
             ];
         }
 
@@ -236,6 +239,7 @@ class PlatformConfig
             'logo_url' => $settings->assetUrl($settings->logo_path),
             'favicon_url' => $settings->assetUrl($settings->favicon_path),
             'tagline' => $settings->tagline,
+            'hide_app_name_next_to_logo' => (bool) $settings->hide_app_name_next_to_logo,
         ];
     }
 

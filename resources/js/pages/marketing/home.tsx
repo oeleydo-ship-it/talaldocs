@@ -28,7 +28,18 @@ import { register } from '@/routes';
 
 type Plan = { id: number; name: string; slug: string; price_cents: number };
 
-type Props = { plans: Plan[] };
+type HomeCopy = {
+    eyebrow: string;
+    heading: string;
+    tagline: string;
+};
+
+type Props = {
+    plans: Plan[];
+    publicContent?: {
+        home: HomeCopy;
+    };
+};
 
 const howItWorks = [
     {
@@ -111,18 +122,20 @@ const platformFeatures: { title: string; description: string; icon: LucideIcon }
     },
 ];
 
-export default function MarketingHome({ plans }: Props) {
+export default function MarketingHome({ plans, publicContent }: Props) {
     const branding = usePlatformBranding();
     const appName = useAppName();
     const faqItems = marketingFaqItems(appName);
+    const homeCopy = publicContent?.home;
     const tagline =
-        branding?.tagline ??
+        homeCopy?.tagline ||
+        branding?.tagline ||
         `Beautiful documentation for software teams. Publish on your subdomain, bring your own domain, and ship faster with ${appName}.`;
 
     return (
         <>
             <MarketingHead
-                title="Beautiful documentation for software teams"
+                title={homeCopy?.heading || 'Beautiful documentation for software teams'}
                 description={tagline}
                 path="/"
             />
@@ -132,10 +145,10 @@ export default function MarketingHome({ plans }: Props) {
                 <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-4 py-20 sm:px-6 lg:py-28">
                     <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
                         <Sparkles className="size-3.5 text-primary" />
-                        Documentation platform for modern product teams
+                        {homeCopy?.eyebrow || 'Documentation platform for modern product teams'}
                     </div>
                     <h1 className="max-w-4xl text-4xl font-semibold tracking-tight sm:text-6xl">
-                        Publish docs your customers will actually read.
+                        {homeCopy?.heading || 'Publish docs your customers will actually read.'}
                     </h1>
                     <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">{tagline}</p>
                     <div className="flex flex-wrap gap-3">

@@ -8,14 +8,26 @@ import { useAppName } from '@/lib/app-branding';
 import { register } from '@/routes';
 
 type Demo = {
+    id?: string;
     name: string;
     subdomain: string;
     layout: string;
     url: string;
 };
 
+type ExamplesCopy = {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    demos_heading: string;
+    demos_description: string;
+};
+
 type Props = {
     demos: Demo[];
+    publicContent?: {
+        examples: ExamplesCopy;
+    };
 };
 
 function templateLabel(layout: string): string {
@@ -63,24 +75,27 @@ const showcase = [
     },
 ];
 
-export default function MarketingExamples({ demos }: Props) {
+export default function MarketingExamples({ demos, publicContent }: Props) {
     const appName = useAppName();
+    const copy = publicContent?.examples;
 
     return (
         <>
             <MarketingHead
-                title="Examples"
-                description={`See live demo documentation sites and preview the Classic and Guide templates in ${appName}.`}
+                title={copy?.eyebrow || 'Examples'}
+                description={copy?.intro || `See live demo documentation sites and preview the Classic and Guide templates in ${appName}.`}
                 path="/examples"
             />
 
             <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
                 <div className="max-w-2xl">
-                    <p className="text-sm font-medium text-primary">Examples</p>
-                    <h1 className="mt-2 text-4xl font-semibold tracking-tight">Docs that feel premium out of the box</h1>
+                    <p className="text-sm font-medium text-primary">{copy?.eyebrow || 'Examples'}</p>
+                    <h1 className="mt-2 text-4xl font-semibold tracking-tight">
+                        {copy?.heading || 'Docs that feel premium out of the box'}
+                    </h1>
                     <p className="mt-4 text-lg text-muted-foreground">
-                        {appName} ships readable typography, nested navigation, branded themes, search, and optional Ask
-                        AI — so your public site looks polished on day one.
+                        {copy?.intro ||
+                            `${appName} ships readable typography, nested navigation, branded themes, search, and optional Ask AI — so your public site looks polished on day one.`}
                     </p>
                 </div>
 
@@ -104,14 +119,14 @@ export default function MarketingExamples({ demos }: Props) {
                     <div className="mt-12">
                         <div className="flex items-center gap-2">
                             <Sparkles className="size-4 text-primary" />
-                            <h2 className="text-lg font-semibold">Live demo sites</h2>
+                            <h2 className="text-lg font-semibold">{copy?.demos_heading || 'Live demo sites'}</h2>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Published documentation from seeded workspaces on this instance.
+                            {copy?.demos_description || 'Published documentation from seeded workspaces on this instance.'}
                         </p>
                         <div className="mt-4 grid gap-4 md:grid-cols-3">
                             {demos.map((demo) => (
-                                <Card key={demo.subdomain} className="shadow-sm transition-shadow hover:shadow-md">
+                                <Card key={demo.id || demo.url} className="shadow-sm transition-shadow hover:shadow-md">
                                     <CardHeader>
                                         <div className="flex items-center justify-between gap-2">
                                             <CardTitle className="text-base">{demo.name}</CardTitle>
@@ -139,7 +154,8 @@ export default function MarketingExamples({ demos }: Props) {
                             <div>
                                 <p className="font-medium">No live demos yet</p>
                                 <p className="text-sm text-muted-foreground">
-                                    Create a workspace, publish a page, and it will appear here automatically.
+                                    No live demos are listed right now. Publish a docs site or add a custom demo URL in
+                                    platform settings.
                                 </p>
                             </div>
                             <Button asChild>

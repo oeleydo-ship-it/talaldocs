@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { useAppName, usePlatformBranding } from '@/lib/app-branding';
+import { shouldShowAppNameNextToLogo, useAppName, usePlatformBranding } from '@/lib/app-branding';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -18,14 +18,16 @@ export function MarketingBrand({
     const branding = usePlatformBranding();
     const name = useAppName();
     const initial = name.trim().charAt(0).toUpperCase() || 'D';
+    const showWordmark = showName && shouldShowAppNameNextToLogo(branding);
 
     return (
         <Link
             href={href}
+            aria-label={showWordmark ? undefined : name}
             className={cn('flex items-center gap-2.5 text-lg font-semibold tracking-tight', className)}
         >
             {branding?.logo_url ? (
-                <img src={branding.logo_url} alt={name} className={cn('h-8 w-auto object-contain', iconClassName)} />
+                <img src={branding.logo_url} alt="" className={cn('h-8 w-auto object-contain', iconClassName)} />
             ) : (
                 <span
                     className={cn(
@@ -36,7 +38,7 @@ export function MarketingBrand({
                     {initial}
                 </span>
             )}
-            {showName && <span>{name}</span>}
+            {showWordmark ? <span>{name}</span> : <span className="sr-only">{name}</span>}
         </Link>
     );
 }

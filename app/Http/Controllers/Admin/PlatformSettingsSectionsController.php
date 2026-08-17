@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
 use App\Support\PlatformAudit;
 use App\Support\PlatformConfig;
+use App\Support\PlatformPublicContent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class PlatformSettingsSectionsController extends Controller
             'tagline' => ['nullable', 'string', 'max:160'],
             'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,svg', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,ico,svg', 'max:512'],
+            'hide_app_name_next_to_logo' => ['sometimes', 'boolean'],
         ]);
 
         $settings = PlatformSetting::instance();
@@ -50,6 +52,7 @@ class PlatformSettingsSectionsController extends Controller
             'app_domain' => $appDomain,
             'support_email' => $data['support_email'] ?? null,
             'tagline' => $data['tagline'] ?? null,
+            'hide_app_name_next_to_logo' => $request->boolean('hide_app_name_next_to_logo'),
         ])->save();
 
         PlatformConfig::apply();
@@ -178,5 +181,58 @@ class PlatformSettingsSectionsController extends Controller
         ]);
 
         return redirect()->route('platform.dashboard', ['tab' => 'settings', 'section' => 'payment']);
+    }
+
+    public function updatePublicContent(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'home' => ['nullable', 'array'],
+            'home.eyebrow' => ['nullable', 'string', 'max:120'],
+            'home.heading' => ['nullable', 'string', 'max:200'],
+            'home.tagline' => ['nullable', 'string', 'max:500'],
+            'examples' => ['nullable', 'array'],
+            'examples.eyebrow' => ['nullable', 'string', 'max:80'],
+            'examples.heading' => ['nullable', 'string', 'max:200'],
+            'examples.intro' => ['nullable', 'string', 'max:800'],
+            'examples.demos_heading' => ['nullable', 'string', 'max:120'],
+            'examples.demos_description' => ['nullable', 'string', 'max:400'],
+            'features' => ['nullable', 'array'],
+            'features.eyebrow' => ['nullable', 'string', 'max:80'],
+            'features.heading' => ['nullable', 'string', 'max:200'],
+            'features.intro' => ['nullable', 'string', 'max:800'],
+            'demos_managed' => ['required', 'boolean'],
+            'demos' => ['nullable', 'array', 'max:24'],
+            'demos.*.id' => ['nullable', 'string', 'max:64'],
+            'demos.*.title' => ['required_with:demos.*.url', 'nullable', 'string', 'max:120'],
+            'demos.*.subtitle' => ['nullable', 'string', 'max:120'],
+            'demos.*.badge' => ['nullable', 'string', 'in:classic,gitbook'],
+            'demos.*.url' => ['required_with:demos.*.title', 'nullable', 'string', 'max:500', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! is_string($value) || trim($value) === '') {
+                    return;
+                }
+
+                if (! PlatformPublicContent::isValidDemoUrl($value)) {
+                    $fail('Enter a full URL (https://docs.example.com) or an internal path (/docs/demo).');
+                }
+            }],
+            'demos.*.sort_order' => ['nullable', 'integer', 'min:0', 'max:1000'],
+            'demos.*.enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = PlatformSetting::instance();
+        $settings->public_content = PlatformPublicContent::sanitize($data);
+        $settings->save();
+
+        $this->audit->record($request->user(), 'platform.public_content_updated', null, [
+            'demos_managed' => (bool) ($settings->public_content['demos_managed'] ?? false),
+            'demos_count' => count($settings->public_content['demos'] ?? []),
+        ]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Public content saved.'),
+        ]);
+
+        return redirect()->route('platform.dashboard', ['tab' => 'settings', 'section' => 'public']);
     }
 }

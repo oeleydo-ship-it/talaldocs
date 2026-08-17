@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Enums\DomainStatus;
+use App\Http\Controllers\Controller;
 use App\Jobs\VerifyCustomDomainJob;
 use App\Models\AiGenerationJob;
 use App\Models\ContentReport;
@@ -15,12 +15,13 @@ use App\Models\Scopes\WorkspaceScope;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\AiDocumentationGenerator;
-use App\Support\PlatformAudit;
+use App\Services\CloudflareService;
 use App\Support\PlanBlueprint;
 use App\Support\PlatformAiConfig;
+use App\Support\PlatformAudit;
 use App\Support\PlatformCloudflareConfig;
 use App\Support\PlatformConfig;
-use App\Services\CloudflareService;
+use App\Support\PlatformPublicContent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -77,6 +78,7 @@ class PlatformAdminController extends Controller
             'paymentSettings' => PlatformConfig::paymentSettings(),
             'aiSettings' => PlatformAiConfig::toPublicArray(),
             'cloudflareSettings' => PlatformCloudflareConfig::toPublicArray(),
+            'publicContent' => PlatformPublicContent::forAdmin(),
             'recentActivity' => PlatformAuditLog::query()
                 ->with('admin:id,name')
                 ->latest('id')

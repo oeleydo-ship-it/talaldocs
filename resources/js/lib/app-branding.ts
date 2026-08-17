@@ -30,3 +30,11 @@ export function useAppName(): string {
 export function usePlatformBranding(): PlatformBranding | undefined {
     return usePage().props.platformBranding as PlatformBranding | undefined;
 }
+
+export function shouldShowAppNameNextToLogo(branding?: PlatformBranding | null): boolean {
+    if (!branding?.logo_url) {
+        return true;
+    }
+
+    return !branding.hide_app_name_next_to_logo;
+}

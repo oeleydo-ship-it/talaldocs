@@ -2,6 +2,7 @@
 
 use App\Models\PlatformSetting;
 use App\Models\User;
+use App\Support\PlatformConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -34,6 +35,73 @@ it('allows platform admin to save general settings with logo upload', function (
 
     expect(config('app.name'))->toBe('Uplary Docs')
         ->and(config('anytdocs.domain'))->toBe('docs.uplary.com');
+});
+
+it('hides the app name next to a custom logo when the general setting is enabled', function (): void {
+    Storage::fake('public');
+
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+
+    $this->actingAs($admin)
+        ->post('/platform/settings/general', [
+            'app_name' => 'Talal Docs',
+            'hide_app_name_next_to_logo' => true,
+            'logo' => UploadedFile::fake()->image('logo.png'),
+        ])
+        ->assertRedirect(route('platform.dashboard', ['tab' => 'settings', 'section' => 'general']));
+
+    $settings = PlatformSetting::instance()->fresh();
+
+    expect($settings->hide_app_name_next_to_logo)->toBeTrue()
+        ->and($settings->logo_path)->not->toBeNull();
+
+    $branding = PlatformConfig::brandingForFrontend();
+
+    expect($branding['hide_app_name_next_to_logo'])->toBeTrue()
+        ->and($branding['logo_url'])->not->toBeNull()
+        ->and($branding['app_name'])->toBe('Talal Docs');
+
+    $this->get('/')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('platformBranding.app_name', 'Talal Docs')
+            ->where('platformBranding.hide_app_name_next_to_logo', true)
+            ->whereNot('platformBranding.logo_url', null)
+        );
+
+    $this->actingAs($admin)
+        ->get('/platform?tab=settings&section=general')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('generalSettings.hide_app_name_next_to_logo', true)
+        );
+});
+
+it('keeps the app name next to the logo when the hide setting is off', function (): void {
+    Storage::fake('public');
+
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+    $settings = PlatformSetting::instance();
+    $settings->forceFill([
+        'app_name' => 'Talal Docs',
+        'logo_path' => 'platform/branding/logo.png',
+        'hide_app_name_next_to_logo' => true,
+    ])->save();
+
+    $this->actingAs($admin)
+        ->post('/platform/settings/general', [
+            'app_name' => 'Talal Docs',
+            'hide_app_name_next_to_logo' => false,
+        ])
+        ->assertRedirect(route('platform.dashboard', ['tab' => 'settings', 'section' => 'general']));
+
+    expect(PlatformSetting::instance()->fresh()->hide_app_name_next_to_logo)->toBeFalse();
+
+    $this->get('/')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('platformBranding.hide_app_name_next_to_logo', false)
+        );
 });
 
 it('allows platform admin to save smtp settings', function (): void {
@@ -99,5 +167,8 @@ it('renders settings tabs on platform dashboard', function (): void {
             ->has('generalSettings.app_domain')
             ->has('smtpSettings')
             ->has('paymentSettings')
+            ->has('publicContent')
+            ->has('publicContent.copy.examples')
+            ->has('publicContent.demos')
         );
 });

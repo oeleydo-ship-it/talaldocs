@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Mail\ContactMessageMail;
 use App\Models\Plan;
-use App\Models\Project;
 use App\Support\PlatformConfig;
+use App\Support\PlatformPublicContent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -20,12 +20,15 @@ class MarketingController extends Controller
     {
         return Inertia::render('marketing/home', [
             'plans' => Plan::query()->where('is_active', true)->orderBy('price_cents')->get(['id', 'name', 'slug', 'price_cents']),
+            'publicContent' => PlatformPublicContent::forMarketing(),
         ]);
     }
 
     public function features(): Response
     {
-        return Inertia::render('marketing/features');
+        return Inertia::render('marketing/features', [
+            'publicContent' => PlatformPublicContent::forMarketing(),
+        ]);
     }
 
     public function pricing(): Response
@@ -37,21 +40,9 @@ class MarketingController extends Controller
 
     public function examples(): Response
     {
-        $demos = Project::query()
-            ->withoutGlobalScopes()
-            ->whereHas('pages', fn ($query) => $query->whereNotNull('published_at'))
-            ->latest('id')
-            ->limit(6)
-            ->get(['id', 'name', 'subdomain', 'docs_template'])
-            ->map(fn (Project $project): array => [
-                'name' => $project->name,
-                'subdomain' => $project->subdomain,
-                'layout' => $project->docs_template?->value ?? 'classic',
-                'url' => $project->docsBasePath(),
-            ]);
-
         return Inertia::render('marketing/examples', [
-            'demos' => $demos,
+            'demos' => PlatformPublicContent::demoSites(),
+            'publicContent' => PlatformPublicContent::forMarketing(),
         ]);
     }
 

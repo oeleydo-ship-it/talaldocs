@@ -65,6 +65,7 @@ class AppServiceProvider extends ServiceProvider
                     'logo_url' => null,
                     'favicon_url' => null,
                     'tagline' => null,
+                    'hide_app_name_next_to_logo' => false,
                 ]);
             }
         });

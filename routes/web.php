@@ -206,6 +206,7 @@ Route::middleware(['auth', 'verified', 'platform'])->prefix('platform')->group(f
     Route::post('settings/smtp', [PlatformSettingsSectionsController::class, 'updateSmtp'])->name('platform.settings.smtp.update');
     Route::post('settings/smtp/test', [PlatformSettingsSectionsController::class, 'testSmtp'])->name('platform.settings.smtp.test');
     Route::post('settings/payment', [PlatformSettingsSectionsController::class, 'updatePayment'])->name('platform.settings.payment.update');
+    Route::post('settings/public', [PlatformSettingsSectionsController::class, 'updatePublicContent'])->name('platform.settings.public.update');
     Route::post('settings/ai', [PlatformAiSettingsController::class, 'update'])->name('platform.settings.ai.update');
     Route::post('settings/ai/test', [PlatformAiSettingsController::class, 'test'])->name('platform.settings.ai.test');
     Route::post('settings/cloudflare', [PlatformCloudflareSettingsController::class, 'update'])->name('platform.settings.cloudflare.update');
