@@ -58,8 +58,20 @@ class VerifyCustomDomainJob implements ShouldQueue
                     $errors[] = 'Cloudflare custom hostname is not registered. HTTPS cannot be issued until SSL for SaaS has this hostname.';
                 }
             } catch (\Throwable $exception) {
-                $errors[] = 'Cloudflare: '.$exception->getMessage();
+                $message = $cloudflare->userMessage($exception);
+                $errors[] = $message;
                 $sslOk = false;
+
+                if ($cloudflare->isAuthenticationFailure($exception)) {
+                    $domain->forceFill([
+                        'last_checked_at' => now(),
+                        'status' => DomainStatus::Failed,
+                        'verified_at' => null,
+                        'error_message' => $message,
+                    ])->save();
+
+                    return;
+                }
             }
 
             if (app()->environment('testing') && $sslOk) {

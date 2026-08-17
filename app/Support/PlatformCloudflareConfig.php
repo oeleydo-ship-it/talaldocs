@@ -20,7 +20,12 @@ class PlatformCloudflareConfig
 
     public static function isConfigured(): bool
     {
-        return filled(self::apiToken()) && filled(self::zoneId()) && self::enabled();
+        return self::hasCredentials() && filled(self::zoneId()) && self::enabled();
+    }
+
+    public static function hasCredentials(): bool
+    {
+        return filled(self::apiToken()) || (filled(self::apiEmail()) && filled(self::apiKey()));
     }
 
     public static function enabled(): bool
@@ -39,31 +44,43 @@ class PlatformCloudflareConfig
     public static function apiToken(): ?string
     {
         if (PlatformConfig::tableAvailable()) {
-            $token = PlatformSetting::instance()->cloudflare_api_token;
+            $token = self::trimmed(PlatformSetting::instance()->cloudflare_api_token);
 
-            if (filled($token)) {
+            if ($token !== null) {
                 return $token;
             }
         }
 
-        $fromConfig = config('anytdocs.cloudflare.api_token');
+        return self::trimmed(config('anytdocs.cloudflare.api_token'));
+    }
 
-        return filled($fromConfig) ? (string) $fromConfig : null;
+    /**
+     * Optional Global API Key auth (env only). Prefer an API token.
+     */
+    public static function apiEmail(): ?string
+    {
+        return self::trimmed(config('anytdocs.cloudflare.api_email'));
+    }
+
+    /**
+     * Optional Global API Key auth (env only). Prefer an API token.
+     */
+    public static function apiKey(): ?string
+    {
+        return self::trimmed(config('anytdocs.cloudflare.api_key'));
     }
 
     public static function zoneId(): ?string
     {
         if (PlatformConfig::tableAvailable()) {
-            $zoneId = PlatformSetting::instance()->cloudflare_zone_id;
+            $zoneId = self::trimmed(PlatformSetting::instance()->cloudflare_zone_id);
 
-            if (filled($zoneId)) {
+            if ($zoneId !== null) {
                 return $zoneId;
             }
         }
 
-        $fromConfig = config('anytdocs.cloudflare.zone_id');
-
-        return filled($fromConfig) ? (string) $fromConfig : null;
+        return self::trimmed(config('anytdocs.cloudflare.zone_id'));
     }
 
     public static function accountId(): ?string
@@ -128,7 +145,7 @@ class PlatformCloudflareConfig
             return true;
         }
 
-        return filled(config('anytdocs.cloudflare.api_token')) && filled(config('anytdocs.cloudflare.zone_id'));
+        return filled(self::trimmed(config('anytdocs.cloudflare.api_token'))) && filled(self::trimmed(config('anytdocs.cloudflare.zone_id')));
     }
 
     public static function fallbackOrigin(): string
@@ -222,5 +239,16 @@ class PlatformCloudflareConfig
         $normalized = strtolower(rtrim(trim((string) $host), '.'));
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private static function trimmed(mixed $value): ?string
+    {
+        if (! is_string($value) && ! is_numeric($value)) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 }

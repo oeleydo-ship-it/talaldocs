@@ -397,6 +397,11 @@ function CloudflareSettingsForm({ settings }: { settings: CloudflareSettings }) 
                         {settings.cloudflare_api_token_masked && (
                             <p className="text-xs text-muted-foreground">Current token: {settings.cloudflare_api_token_masked}</p>
                         )}
+                        <p className="text-xs text-muted-foreground">
+                            Use a Cloudflare API token (not the Global API Key). Required permissions: Zone → SSL and
+                            Certificates → Edit, and Custom Hostnames. Zone → DNS → Edit is enough for tenant subdomains
+                            but custom domains will fail without Custom Hostnames.
+                        </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Button type="submit">Save Cloudflare settings</Button>

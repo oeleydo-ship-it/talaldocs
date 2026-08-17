@@ -13,9 +13,9 @@ use App\Models\DocumentationVersion;
 use App\Models\Language;
 use App\Models\Page;
 use App\Models\ProjectLanguage;
+use App\Rules\HeaderMenuUrl;
 use App\Services\CloudflareService;
 use App\Services\DocsIndexService;
-use App\Rules\HeaderMenuUrl;
 use App\Support\Audit;
 use App\Support\PlanGate;
 use App\Support\PlatformCloudflareConfig;
@@ -233,7 +233,7 @@ class ProjectSettingsController extends Controller
             } catch (\Throwable $exception) {
                 $domain->forceFill([
                     'status' => DomainStatus::Failed,
-                    'error_message' => 'Cloudflare registration failed: '.$exception->getMessage(),
+                    'error_message' => $this->cloudflare->userMessage($exception),
                 ])->save();
             }
         }

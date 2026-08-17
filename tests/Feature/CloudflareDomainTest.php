@@ -9,8 +9,11 @@ use App\Models\Plan;
 use App\Models\PlatformSetting;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\CloudflareService;
 use App\Support\PlatformCloudflareConfig;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -46,7 +49,7 @@ class CloudflareDomainTest extends TestCase
     public function test_adding_domain_registers_cloudflare_hostname_when_configured(): void
     {
         Queue::fake();
-        Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        Http::fake(function (Request $request) {
             if ($request->method() === 'GET' && str_contains($request->url(), 'custom_hostnames')) {
                 return Http::response(['success' => true, 'result' => []], 200);
             }
@@ -126,7 +129,7 @@ class CloudflareDomainTest extends TestCase
             ], 200),
         ]);
 
-        (new VerifyCustomDomainJob($domain->id))->handle(app(\App\Services\CloudflareService::class));
+        (new VerifyCustomDomainJob($domain->id))->handle(app(CloudflareService::class));
 
         $domain->refresh();
         $this->assertSame(DomainStatus::Active, $domain->status);
@@ -173,7 +176,7 @@ class CloudflareDomainTest extends TestCase
             ], 200),
         ]);
 
-        (new VerifyCustomDomainJob($domain->id))->handle(app(\App\Services\CloudflareService::class));
+        (new VerifyCustomDomainJob($domain->id))->handle(app(CloudflareService::class));
 
         $domain->refresh();
         $this->assertNotSame(DomainStatus::Active, $domain->status);
@@ -289,7 +292,7 @@ class CloudflareDomainTest extends TestCase
             'status' => DomainStatus::Pending,
         ]);
 
-        Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        Http::fake(function (Request $request) {
             if ($request->method() === 'GET' && str_contains($request->url(), 'custom_hostnames')) {
                 return Http::response(['success' => true, 'result' => []], 200);
             }
@@ -316,7 +319,7 @@ class CloudflareDomainTest extends TestCase
             return Http::response(['success' => true, 'result' => []], 200);
         });
 
-        (new VerifyCustomDomainJob($domain->id))->handle(app(\App\Services\CloudflareService::class));
+        (new VerifyCustomDomainJob($domain->id))->handle(app(CloudflareService::class));
 
         $domain->refresh();
         $this->assertSame('cf-hostname-created', $domain->cloudflare_hostname_id);
@@ -326,11 +329,12 @@ class CloudflareDomainTest extends TestCase
         $this->assertFalse($domain->sslReady());
         $this->assertNotSame(DomainStatus::Active, $domain->status);
 
-        Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
+        Http::assertSent(function (Request $request): bool {
             $data = $request->data();
 
             return $request->method() === 'POST'
                 && str_contains($request->url(), '/zones/zone_test/custom_hostnames')
+                && $request->hasHeader('Authorization', 'Bearer cf_token_test')
                 && ($data['hostname'] ?? null) === 'docs.example.test'
                 && data_get($data, 'ssl.method') === 'http'
                 && data_get($data, 'ssl.type') === 'dv';
@@ -488,5 +492,132 @@ class CloudflareDomainTest extends TestCase
                 ->where('domains.0.cname_target', 'fallback.talaldocs.com')
                 ->where('domains.0.tenant_cname_target', 'acmetest.talaldocs.com')
             );
+    }
+
+    public function test_verify_job_maps_cloudflare_403_10000_to_friendly_auth_message(): void
+    {
+        $this->configureCloudflare();
+        Http::fake($this->cloudflareAuthFailureFake());
+
+        $owner = User::factory()->onboarded()->create();
+        $project = Project::query()->withoutGlobalScopes()->where('workspace_id', $owner->current_workspace_id)->firstOrFail();
+
+        $domain = CustomDomain::query()->create([
+            'workspace_id' => $project->workspace_id,
+            'project_id' => $project->id,
+            'hostname' => 'docs.uplary.com',
+            'verification_token' => 'abc123',
+            'status' => DomainStatus::Pending,
+        ]);
+
+        (new VerifyCustomDomainJob($domain->id))->handle(app(CloudflareService::class));
+
+        $domain->refresh();
+        $this->assertSame(DomainStatus::Failed, $domain->status);
+        $this->assertSame(CloudflareService::AUTHENTICATION_ERROR_MESSAGE, $domain->error_message);
+        $this->assertStringNotContainsString('HTTP request returned status code', (string) $domain->error_message);
+        $this->assertStringNotContainsString('"success":false', (string) $domain->error_message);
+        $this->assertStringNotContainsString('TXT record', (string) $domain->error_message);
+        $this->assertStringNotContainsString('CNAME', (string) $domain->error_message);
+        $this->assertStringNotContainsString('SSL certificate is not active yet', (string) $domain->error_message);
+    }
+
+    public function test_adding_domain_maps_cloudflare_auth_error_without_raw_json(): void
+    {
+        Queue::fake();
+        $this->configureCloudflare();
+        Http::fake($this->cloudflareAuthFailureFake());
+
+        $owner = User::factory()->onboarded()->create();
+        $workspace = $owner->currentWorkspace;
+        $workspace->forceFill(['plan_id' => Plan::query()->where('slug', 'pro')->value('id')])->save();
+        $project = Project::query()->withoutGlobalScopes()->where('workspace_id', $workspace->id)->firstOrFail();
+
+        $this->actingAs($owner)
+            ->post(route('projects.domains.store', $project->id), [
+                'hostname' => 'docs.uplary.com',
+            ])
+            ->assertRedirect();
+
+        $domain = CustomDomain::query()->where('hostname', 'docs.uplary.com')->first();
+        $this->assertNotNull($domain);
+        $this->assertSame(DomainStatus::Failed, $domain->status);
+        $this->assertSame(CloudflareService::AUTHENTICATION_ERROR_MESSAGE, $domain->error_message);
+        $this->assertStringNotContainsString('Cloudflare registration failed', (string) $domain->error_message);
+        $this->assertStringNotContainsString('{', (string) $domain->error_message);
+    }
+
+    public function test_platform_cloudflare_test_maps_403_10000_to_friendly_auth_message(): void
+    {
+        $admin = User::factory()->onboarded()->create(['is_platform_admin' => true]);
+        $this->configureCloudflare();
+        Http::fake($this->cloudflareAuthFailureFake());
+
+        $this->actingAs($admin)
+            ->postJson(route('platform.settings.cloudflare.test'))
+            ->assertUnprocessable()
+            ->assertJson([
+                'ok' => false,
+                'message' => CloudflareService::AUTHENTICATION_ERROR_MESSAGE,
+            ]);
+    }
+
+    public function test_platform_cloudflare_test_fails_when_zone_ok_but_custom_hostnames_auth_fails(): void
+    {
+        $admin = User::factory()->onboarded()->create(['is_platform_admin' => true]);
+        $this->configureCloudflare();
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET' && str_contains($request->url(), '/custom_hostnames')) {
+                return Http::response($this->cloudflareAuthFailureBody(), 403);
+            }
+
+            if ($request->method() === 'GET' && str_contains($request->url(), '/zones/')) {
+                return Http::response([
+                    'success' => true,
+                    'result' => ['id' => 'zone_test', 'name' => 'talaldocs.com'],
+                ], 200);
+            }
+
+            return Http::response($this->cloudflareAuthFailureBody(), 403);
+        });
+
+        $this->actingAs($admin)
+            ->postJson(route('platform.settings.cloudflare.test'))
+            ->assertUnprocessable()
+            ->assertJson([
+                'ok' => false,
+                'message' => CloudflareService::AUTHENTICATION_ERROR_MESSAGE,
+            ]);
+    }
+
+    private function configureCloudflare(): void
+    {
+        PlatformSetting::instance()->forceFill([
+            'cloudflare_enabled' => true,
+            'cloudflare_zone_id' => 'zone_test',
+            'cloudflare_api_token' => 'cf_token_test',
+            'cloudflare_fallback_origin' => 'fallback.anytdocs.test',
+        ])->save();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cloudflareAuthFailureBody(): array
+    {
+        return [
+            'success' => false,
+            'errors' => [['code' => 10000, 'message' => 'Authentication error']],
+            'messages' => [],
+            'result' => null,
+        ];
+    }
+
+    /**
+     * @return \Closure(Request): PromiseInterface
+     */
+    private function cloudflareAuthFailureFake(): \Closure
+    {
+        return fn () => Http::response($this->cloudflareAuthFailureBody(), 403);
     }
 }

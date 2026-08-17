@@ -839,6 +839,9 @@ export default function ProjectSettings({
                                     const ownershipValue = domain.ownership_txt_value;
                                     const sslTxtName = domain.ssl_txt_name;
                                     const sslTxtValue = domain.ssl_txt_value;
+                                    const platformCredentialError = (domain.error_message ?? '').includes(
+                                        'Cloudflare API authentication failed',
+                                    );
 
                                     return (
                                         <div key={domain.id} className="space-y-3 rounded-lg border p-3 text-sm">
@@ -855,7 +858,7 @@ export default function ProjectSettings({
                                                     {domain.ssl_ready && (
                                                         <Badge>SSL active</Badge>
                                                     )}
-                                                    {domain.cloudflare_managed && !domain.ssl_ready && (
+                                                    {domain.cloudflare_managed && !domain.ssl_ready && !platformCredentialError && (
                                                         <Badge variant="outline">
                                                             {domain.ssl_status ? sslStatusLabel(domain.ssl_status) : 'SSL not issued'}
                                                         </Badge>
@@ -899,7 +902,7 @@ export default function ProjectSettings({
                                                     </div>
                                                 </div>
                                             </div>
-                                            {domain.cloudflare_managed && !domain.ssl_ready && (
+                                            {domain.cloudflare_managed && !domain.ssl_ready && !platformCredentialError && (
                                                 <p className="text-muted-foreground">
                                                     {ownershipName && ownershipValue
                                                         ? 'HTTPS stays broken until Cloudflare SSL for SaaS issues a certificate. Add the Cloudflare ownership TXT above, keep the CNAME, then click Verify now.'

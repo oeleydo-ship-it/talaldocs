@@ -4,9 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
-use App\Support\PlatformAudit;
-use App\Support\PlatformCloudflareConfig;
 use App\Services\CloudflareService;
+use App\Support\PlatformAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,8 +33,8 @@ class PlatformCloudflareSettingsController extends Controller
 
         $settings->fill([
             'cloudflare_enabled' => $data['cloudflare_enabled'],
-            'cloudflare_zone_id' => filled($data['cloudflare_zone_id'] ?? null) ? $data['cloudflare_zone_id'] : null,
-            'cloudflare_account_id' => filled($data['cloudflare_account_id'] ?? null) ? $data['cloudflare_account_id'] : null,
+            'cloudflare_zone_id' => filled($data['cloudflare_zone_id'] ?? null) ? trim($data['cloudflare_zone_id']) : null,
+            'cloudflare_account_id' => filled($data['cloudflare_account_id'] ?? null) ? trim($data['cloudflare_account_id']) : null,
             'cloudflare_fallback_origin' => filled($data['cloudflare_fallback_origin'] ?? null)
                 ? strtolower(rtrim($data['cloudflare_fallback_origin'], '.'))
                 : null,
@@ -43,7 +42,7 @@ class PlatformCloudflareSettingsController extends Controller
         ]);
 
         if (filled($data['cloudflare_api_token'] ?? null)) {
-            $settings->cloudflare_api_token = $data['cloudflare_api_token'];
+            $settings->cloudflare_api_token = trim($data['cloudflare_api_token']);
         }
 
         $settings->save();

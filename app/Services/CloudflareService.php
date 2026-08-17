@@ -6,6 +6,7 @@ use App\Models\CustomDomain;
 use App\Models\Project;
 use App\Support\PlatformCloudflareConfig;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +15,8 @@ use RuntimeException;
 class CloudflareService
 {
     private const API_BASE = 'https://api.cloudflare.com/client/v4';
+
+    public const AUTHENTICATION_ERROR_MESSAGE = 'Cloudflare API authentication failed. Update the API token in Platform → Settings → DNS. The token needs Custom Hostnames and SSL for SaaS permissions.';
 
     public function isConfigured(): bool
     {
@@ -33,17 +36,49 @@ class CloudflareService
             $response = $this->client()->get('/zones/'.PlatformCloudflareConfig::zoneId());
             $zone = $this->resultFrom($response);
 
+            // Zone read can succeed with DNS-only tokens. Custom domains need Custom Hostnames.
+            $hostnames = $this->client()->get('/zones/'.PlatformCloudflareConfig::zoneId().'/custom_hostnames', [
+                'per_page' => 1,
+            ]);
+            $this->resultFrom($hostnames);
+
             return [
                 'ok' => true,
-                'message' => 'Connected to zone '.($zone['name'] ?? PlatformCloudflareConfig::zoneId()).'.',
+                'message' => 'Connected to zone '.($zone['name'] ?? PlatformCloudflareConfig::zoneId()).'. Custom Hostnames API is reachable.',
                 'zone_name' => $zone['name'] ?? null,
             ];
         } catch (RequestException|ConnectionException|RuntimeException $exception) {
             return [
                 'ok' => false,
-                'message' => $this->messageFromException($exception),
+                'message' => $this->userMessage($exception),
             ];
         }
+    }
+
+    public function userMessage(\Throwable $exception): string
+    {
+        $mapped = $this->messageFromException($exception);
+
+        return $mapped !== '' ? $mapped : self::AUTHENTICATION_ERROR_MESSAGE;
+    }
+
+    public function isAuthenticationFailure(\Throwable $exception): bool
+    {
+        if ($exception instanceof RequestException && $this->responseIsAuthFailure($exception->response)) {
+            return true;
+        }
+
+        $previous = $exception->getPrevious();
+
+        if ($previous instanceof RequestException && $this->responseIsAuthFailure($previous->response)) {
+            return true;
+        }
+
+        $message = $exception->getMessage();
+
+        return $message === self::AUTHENTICATION_ERROR_MESSAGE
+            || str_contains($message, 'Authentication error')
+            || (str_contains($message, '"code":10000') && str_contains($message, '403'));
     }
 
     /**
@@ -312,38 +347,115 @@ class CloudflareService
         return is_array($result) ? $result : [];
     }
 
-    private function client(): \Illuminate\Http\Client\PendingRequest
+    private function client(): PendingRequest
     {
         $token = PlatformCloudflareConfig::apiToken();
+        $email = PlatformCloudflareConfig::apiEmail();
+        $key = PlatformCloudflareConfig::apiKey();
 
-        if (! filled($token)) {
-            throw new RuntimeException('Cloudflare API token is not configured.');
-        }
-
-        return Http::baseUrl(self::API_BASE)
+        $request = Http::baseUrl(self::API_BASE)
             ->acceptJson()
-            ->withToken($token)
             ->timeout(20)
             ->throw();
-    }
 
-    private function messageFromException(RequestException|ConnectionException|RuntimeException $exception): string
-    {
-        if ($exception instanceof RequestException) {
-            return $this->messageFromResponse($exception->response) ?: $exception->getMessage();
+        if (filled($token)) {
+            // Custom Hostnames / SSL for SaaS require an API token sent as Bearer.
+            return $request->withHeaders([
+                'Authorization' => 'Bearer '.$token,
+            ]);
         }
 
-        return $exception->getMessage();
+        if (filled($email) && filled($key)) {
+            return $request->withHeaders([
+                'X-Auth-Email' => $email,
+                'X-Auth-Key' => $key,
+            ]);
+        }
+
+        throw new RuntimeException('Cloudflare API token is not configured.');
+    }
+
+    private function messageFromException(\Throwable $exception): string
+    {
+        if ($this->isAuthenticationFailure($exception)) {
+            return self::AUTHENTICATION_ERROR_MESSAGE;
+        }
+
+        if ($exception instanceof RequestException) {
+            $fromResponse = $this->messageFromResponse($exception->response);
+
+            if ($fromResponse !== '') {
+                return $fromResponse;
+            }
+        }
+
+        $previous = $exception->getPrevious();
+
+        if ($previous instanceof RequestException) {
+            $fromResponse = $this->messageFromResponse($previous->response);
+
+            if ($fromResponse !== '') {
+                return $fromResponse;
+            }
+        }
+
+        $message = trim($exception->getMessage());
+
+        if ($message === '' || $this->looksLikeRawHttpDump($message)) {
+            return 'Cloudflare request failed.';
+        }
+
+        return $message;
     }
 
     private function messageFromResponse(?Response $response): string
     {
-        $errors = $response?->json('errors');
-
-        if (is_array($errors) && isset($errors[0]['message'])) {
-            return (string) $errors[0]['message'];
+        if ($response === null) {
+            return '';
         }
 
-        return (string) ($response?->json('errors.0.message') ?: '');
+        if ($this->responseIsAuthFailure($response)) {
+            return self::AUTHENTICATION_ERROR_MESSAGE;
+        }
+
+        $errors = $response->json('errors');
+
+        if (is_array($errors) && isset($errors[0]['message'])) {
+            $message = trim((string) $errors[0]['message']);
+
+            if ($message !== '' && ! $this->looksLikeRawHttpDump($message)) {
+                return $message;
+            }
+        }
+
+        return '';
+    }
+
+    private function responseIsAuthFailure(?Response $response): bool
+    {
+        if ($response === null) {
+            return false;
+        }
+
+        $status = $response->status();
+        $code = (int) $response->json('errors.0.code');
+        $message = strtolower((string) ($response->json('errors.0.message') ?? ''));
+
+        if ($code === 10000) {
+            return true;
+        }
+
+        if ($status === 401) {
+            return true;
+        }
+
+        return $status === 403 && (str_contains($message, 'authentication') || $message === '');
+    }
+
+    private function looksLikeRawHttpDump(string $message): bool
+    {
+        return str_contains($message, 'HTTP request returned status code')
+            || str_contains($message, '"success":false')
+            || str_contains($message, '{"success"');
     }
 }

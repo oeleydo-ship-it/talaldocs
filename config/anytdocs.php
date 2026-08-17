@@ -13,6 +13,8 @@ return [
     'cloudflare' => [
         'enabled' => filter_var(env('CLOUDFLARE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'api_token' => env('CLOUDFLARE_API_TOKEN'),
+        'api_email' => env('CLOUDFLARE_EMAIL'),
+        'api_key' => env('CLOUDFLARE_API_KEY'),
         'zone_id' => env('CLOUDFLARE_ZONE_ID'),
         'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
         'fallback_origin' => env('CLOUDFLARE_FALLBACK_ORIGIN'),
