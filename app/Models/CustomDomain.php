@@ -111,11 +111,11 @@ class CustomDomain extends Model
 
     public function sslReady(): bool
     {
-        if (PlatformCloudflareConfig::usesCustomHostnames() || $this->usesCloudflare()) {
-            return strtolower((string) $this->ssl_status) === 'active';
+        if (! filled($this->cloudflare_hostname_id)) {
+            return false;
         }
 
-        return $this->status === DomainStatus::Active;
+        return strtolower((string) $this->ssl_status) === 'active';
     }
 
     /**
@@ -130,11 +130,17 @@ class CustomDomain extends Model
      */
     public function applyCloudflareHostname(array $remote): void
     {
-        $hostnameId = $remote['id'] ?? null;
+        $sslStatus = array_key_exists('ssl_status', $remote)
+            ? (filled($remote['ssl_status'] ?? null) ? strtolower((string) $remote['ssl_status']) : null)
+            : $this->ssl_status;
+
+        $hostnameId = filled($remote['id'] ?? null)
+            ? (string) $remote['id']
+            : $this->cloudflare_hostname_id;
 
         $this->forceFill([
             'cloudflare_hostname_id' => filled($hostnameId) ? (string) $hostnameId : $this->cloudflare_hostname_id,
-            'ssl_status' => $remote['ssl_status'] ?? $this->ssl_status,
+            'ssl_status' => filled($hostnameId) ? $sslStatus : null,
             'ownership_txt_name' => $remote['ownership_txt_name'] ?? $this->ownership_txt_name,
             'ownership_txt_value' => $remote['ownership_txt_value'] ?? $this->ownership_txt_value,
             'ssl_txt_name' => $remote['ssl_txt_name'] ?? $this->ssl_txt_name,

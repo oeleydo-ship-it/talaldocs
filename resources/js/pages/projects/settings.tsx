@@ -867,23 +867,45 @@ export default function ProjectSettings({
                                                     <span>CNAME {domain.hostname} → {cnameTarget}</span>
                                                     <CopyButton value={cnameTarget} label="Copy target" />
                                                 </div>
-                                                {ownershipName && ownershipValue && (
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <span>TXT {ownershipName} = {ownershipValue}</span>
-                                                        <CopyButton value={ownershipValue} label="Copy TXT" />
+                                                {domain.cloudflare_managed && !domain.ssl_ready && ownershipName && ownershipValue && (
+                                                    <div className="space-y-1">
+                                                        <p className="font-sans text-[11px] font-medium text-foreground">
+                                                            Cloudflare ownership TXT (required for HTTPS)
+                                                        </p>
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <span>TXT {ownershipName} = {ownershipValue}</span>
+                                                            <CopyButton value={ownershipValue} label="Copy TXT" />
+                                                        </div>
                                                     </div>
                                                 )}
-                                                {sslTxtName && sslTxtValue && (
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <span>TXT {sslTxtName} = {sslTxtValue}</span>
-                                                        <CopyButton value={sslTxtValue} label="Copy TXT" />
+                                                {domain.cloudflare_managed && !domain.ssl_ready && sslTxtName && sslTxtValue && (
+                                                    <div className="space-y-1">
+                                                        <p className="font-sans text-[11px] font-medium text-foreground">
+                                                            Cloudflare SSL DCV TXT
+                                                        </p>
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <span>TXT {sslTxtName} = {sslTxtValue}</span>
+                                                            <CopyButton value={sslTxtValue} label="Copy TXT" />
+                                                        </div>
                                                     </div>
                                                 )}
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <span>TXT {txtHost} = {txtValue}</span>
-                                                    <CopyButton value={txtValue} label="Copy TXT" />
+                                                <div className="space-y-1">
+                                                    <p className="font-sans text-[11px] font-medium text-muted-foreground">
+                                                        Anytdocs TXT (proves this domain to us, not HTTPS)
+                                                    </p>
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <span>TXT {txtHost} = {txtValue}</span>
+                                                        <CopyButton value={txtValue} label="Copy TXT" />
+                                                    </div>
                                                 </div>
                                             </div>
+                                            {domain.cloudflare_managed && !domain.ssl_ready && (
+                                                <p className="text-muted-foreground">
+                                                    {ownershipName && ownershipValue
+                                                        ? 'HTTPS stays broken until Cloudflare SSL for SaaS issues a certificate. Add the Cloudflare ownership TXT above, keep the CNAME, then click Verify now.'
+                                                        : 'HTTPS is not issued yet. Click Verify now to register this hostname with Cloudflare SSL for SaaS. When Cloudflare returns an ownership TXT, add it at your DNS host.'}
+                                                </p>
+                                            )}
                                             {domain.error_message && <p className="text-destructive">{domain.error_message}</p>}
                                             <div className="flex flex-wrap gap-2">
                                                 <Button size="sm" variant="outline" onClick={() => router.post(`/projects/${project.id}/domains/${domain.id}/verify`)}>

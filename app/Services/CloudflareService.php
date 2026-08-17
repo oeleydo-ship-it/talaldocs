@@ -62,12 +62,22 @@ class CloudflareService
     public function ensureCustomHostname(CustomDomain $domain): array
     {
         if (filled($domain->cloudflare_hostname_id)) {
-            return $this->fetchCustomHostname($domain);
+            try {
+                $remote = $this->fetchCustomHostname($domain);
+
+                if (filled($remote['id'])) {
+                    return $remote;
+                }
+            } catch (RequestException $exception) {
+                if ($exception->response?->status() !== 404) {
+                    throw $exception;
+                }
+            }
         }
 
         $existing = $this->findCustomHostname($domain->hostname);
 
-        if ($existing !== null) {
+        if ($existing !== null && filled($existing['id'])) {
             return $existing;
         }
 
@@ -246,12 +256,14 @@ class CloudflareService
         $ownership = is_array($result['ownership_verification'] ?? null) ? $result['ownership_verification'] : [];
         [$sslTxtName, $sslTxtValue] = $this->sslTxtFrom($ssl);
 
+        $sslStatus = isset($ssl['status']) ? strtolower((string) $ssl['status']) : null;
+
         return [
             'id' => (string) ($result['id'] ?? $domain?->cloudflare_hostname_id ?? ''),
-            'ssl_status' => isset($ssl['status']) ? (string) $ssl['status'] : ($domain?->ssl_status),
+            'ssl_status' => $sslStatus,
             'status' => isset($result['status']) ? (string) $result['status'] : null,
-            'ownership_txt_name' => $ownership['name'] ?? $domain?->ownership_txt_name,
-            'ownership_txt_value' => $ownership['value'] ?? $domain?->ownership_txt_value,
+            'ownership_txt_name' => filled($ownership['name'] ?? null) ? (string) $ownership['name'] : $domain?->ownership_txt_name,
+            'ownership_txt_value' => filled($ownership['value'] ?? null) ? (string) $ownership['value'] : $domain?->ownership_txt_value,
             'ssl_txt_name' => $sslTxtName ?? $domain?->ssl_txt_name,
             'ssl_txt_value' => $sslTxtValue ?? $domain?->ssl_txt_value,
         ];

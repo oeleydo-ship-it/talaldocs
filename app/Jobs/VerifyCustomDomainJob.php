@@ -43,8 +43,10 @@ class VerifyCustomDomainJob implements ShouldQueue
             try {
                 $remote = $cloudflare->ensureCustomHostname($domain);
                 $domain->applyCloudflareHostname($remote);
+                $domain->refresh();
 
-                $sslOk = strtolower((string) ($remote['ssl_status'] ?? '')) === 'active';
+                $sslOk = filled($domain->cloudflare_hostname_id)
+                    && strtolower((string) ($remote['ssl_status'] ?? $domain->ssl_status ?? '')) === 'active';
 
                 if (filled($domain->ownership_txt_name) && filled($domain->ownership_txt_value)) {
                     $ownershipOk = $this->verifyOwnershipTxt($domain);
